@@ -1,6 +1,7 @@
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from agents import (
@@ -12,8 +13,6 @@ from agents import (
     Runner,
     set_tracing_disabled,
 )
-
-from dotenv import load_dotenv
 
 load_dotenv(dotenv_path='../deepseek.env', verbose=True)
 
