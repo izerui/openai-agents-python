@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from openai import OpenAI, AsyncOpenAI, NOT_GIVEN
+from openai import AsyncOpenAI
 
 from agents import (
     Agent,
@@ -10,7 +10,6 @@ from agents import (
     OpenAIChatCompletionsModel,
     RunConfig,
     Runner,
-    function_tool,
     set_tracing_disabled,
 )
 
