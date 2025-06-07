@@ -131,7 +131,6 @@ plugins:
                     - ref/extensions/litellm.md
 
         - locale: zh
-          default: true
           name: 中文
           build: true
           nav:
