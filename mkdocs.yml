@@ -134,10 +134,10 @@ plugins:
           name: 中文
           build: true
           nav:
-            - Intro: index.md
-            - Quickstart: quickstart.md
-            - Examples: examples.md
-            - Documentation:
+            - 简介: index.md
+            - 快速开始: quickstart.md
+            - 示例: examples.md
+            - 文档:
                 - agents.md
                 - running_agents.md
                 - results.md
@@ -160,7 +160,7 @@ plugins:
                     - voice/quickstart.md
                     - voice/pipeline.md
                     - voice/tracing.md
-            - API Reference:
+            - API参考:
                 - Agents:
                     - ref/index.md
                     - ref/agent.md
