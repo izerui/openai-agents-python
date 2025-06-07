@@ -54,7 +54,7 @@ triage_agent = Agent(
 draw_graph(triage_agent)
 ```
 
-![Agent Graph](./assets/images/graph.png)
+![Agent Graph](../assets/images/graph.png)
 
 This generates a graph that visually represents the structure of the **triage agent** and its connections to sub-agents and tools.
 (这将生成一个图表，直观地表示**分诊代理**的结构及其与子代理和工具的连接。)

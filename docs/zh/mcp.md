@@ -58,4 +58,4 @@ View complete working examples at [examples/mcp](https://github.com/openai/opena
 1. Calls to the MCP server to list tools (调用MCP服务器列出工具)
 2. MCP-related info on function calls (函数调用中与MCP相关的信息)
 
-![MCP Tracing Screenshot](./assets/images/mcp-tracing.jpg)
+![MCP Tracing Screenshot](../assets/images/mcp-tracing.jpg)
