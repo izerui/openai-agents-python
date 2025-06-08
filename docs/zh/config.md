@@ -1,6 +1,6 @@
-# Configuring the SDK (配置SDK)
+# 配置SDK
 
-## API keys and clients (API密钥和客户端)
+## API密钥和客户端
 
 By default, the SDK looks for the `OPENAI_API_KEY` environment variable for LLM requests and tracing, as soon as it is imported. If you are unable to set that environment variable before your app starts, you can use the [set_default_openai_key()][agents.set_default_openai_key] function to set the key.
 (默认情况下，SDK在导入时会查找`OPENAI_API_KEY`环境变量用于LLM请求和追踪。如果您无法在应用程序启动前设置该环境变量，可以使用[set_default_openai_key()][agents.set_default_openai_key]函数设置密钥。)
