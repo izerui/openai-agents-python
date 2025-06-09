@@ -4,6 +4,8 @@ from pydantic import BaseModel
 
 from agents import Agent, Runner, function_tool
 
+from examples.models import get_agent_chat_model
+
 
 class Weather(BaseModel):
     city: str
@@ -17,10 +19,13 @@ def get_weather(city: str) -> Weather:
     return Weather(city=city, temperature_range="14-20C", conditions="Sunny with wind.")
 
 
+deepseekv3 = get_agent_chat_model('deepseek-v3')
+
 agent = Agent(
     name="Hello world",
     instructions="You are a helpful agent.",
     tools=[get_weather],
+    model=deepseekv3,
 )
 
 

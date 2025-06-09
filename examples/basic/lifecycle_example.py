@@ -4,7 +4,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from agents import Agent, RunContextWrapper, RunHooks, Runner, Tool, Usage, function_tool
+from agents import Agent, RunContextWrapper, RunHooks, Runner, Tool, Usage, function_tool, RunConfig, ModelSettings
+
+from examples.models import get_agent_chat_model
 
 
 class ExampleHooks(RunHooks):
@@ -70,30 +72,40 @@ class FinalResult(BaseModel):
     number: int
 
 
+deepseekv3 = get_agent_chat_model('deepseek-v3')
+
 multiply_agent = Agent(
-    name="Multiply Agent",
-    instructions="Multiply the number by 2 and then return the final result.",
+    name="乘法智能体",
+    instructions=f"将数字乘以2，然后返回最终结果. 用json格式返回.json_schema: {FinalResult.model_json_schema()}",
     tools=[multiply_by_two],
     output_type=FinalResult,
+    model=deepseekv3,
+    model_settings=ModelSettings(temperature=0.1, extra_body={
+        "response_format": {"type": "json_object"},
+    }),
 )
 
 start_agent = Agent(
-    name="Start Agent",
-    instructions="Generate a random number. If it's even, stop. If it's odd, hand off to the multiplier agent.",
+    name="随机数智能体",
+    instructions=f"生成一个随机数。如果是，请停下来。如果很奇怪，请交给乘数代理. 用json格式返回. json_schema: {FinalResult.model_json_schema()}",
     tools=[random_number],
     output_type=FinalResult,
     handoffs=[multiply_agent],
+    model=deepseekv3,
+    model_settings=ModelSettings(temperature=0.1, extra_body={
+        "response_format": {"type": "json_object"},
+    }),
 )
 
 
 async def main() -> None:
     user_input = input("Enter a max number: ")
-    await Runner.run(
+    result = await Runner.run(
         start_agent,
         hooks=hooks,
-        input=f"Generate a random number between 0 and {user_input}.",
+        input=f"在 0 和 {user_input} 之间生成一个随机数",
     )
-
+    print(result.final_output)
     print("Done!")
 
 

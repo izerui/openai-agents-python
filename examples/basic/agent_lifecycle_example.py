@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 from agents import Agent, AgentHooks, RunContextWrapper, Runner, Tool, function_tool
 
+from examples.models import get_agent_chat_model
+
 
 class CustomAgentHooks(AgentHooks):
     def __init__(self, display_name: str):
@@ -64,21 +66,25 @@ class FinalResult(BaseModel):
     number: int
 
 
+gpt = get_agent_chat_model("gpt")
+
 multiply_agent = Agent(
-    name="Multiply Agent",
-    instructions="Multiply the number by 2 and then return the final result.",
+    name="乘代理",
+    instructions="将数字乘以2，然后返回最终结果。",
     tools=[multiply_by_two],
     output_type=FinalResult,
     hooks=CustomAgentHooks(display_name="Multiply Agent"),
+    model=gpt,
 )
 
 start_agent = Agent(
-    name="Start Agent",
-    instructions="Generate a random number. If it's even, stop. If it's odd, hand off to the multiply agent.",
+    name="开始代理",
+    instructions="生成一个随机数。如果是偶数，请停下来。如果是奇数，请将其移交给乘代理。",
     tools=[random_number],
     output_type=FinalResult,
     handoffs=[multiply_agent],
     hooks=CustomAgentHooks(display_name="Start Agent"),
+    model=gpt,
 )
 
 
@@ -86,7 +92,7 @@ async def main() -> None:
     user_input = input("Enter a max number: ")
     await Runner.run(
         start_agent,
-        input=f"Generate a random number between 0 and {user_input}.",
+        input=f"在0和{user_input}之间生成一个随机数。",
     )
 
     print("Done!")

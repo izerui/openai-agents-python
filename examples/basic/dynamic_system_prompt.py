@@ -4,6 +4,8 @@ from typing import Literal
 
 from agents import Agent, RunContextWrapper, Runner
 
+from examples.models import get_agent_chat_model
+
 
 class CustomContext:
     def __init__(self, style: Literal["haiku", "pirate", "robot"]):
@@ -15,16 +17,18 @@ def custom_instructions(
 ) -> str:
     context = run_context.context
     if context.style == "haiku":
-        return "Only respond in haikus."
+        return "以haikus的形式回应，使用简短的三行诗句。"
     elif context.style == "pirate":
-        return "Respond as a pirate."
+        return "以海盗的身份回应，使用海盗的语气和表情符号。"
     else:
-        return "Respond as a robot and say 'beep boop' a lot."
+        return "以机器人身份回应，使用机器人的语气和表情符号。"
 
+deepseekv3 = get_agent_chat_model('deepseek-v3')
 
 agent = Agent(
     name="Chat agent",
     instructions=custom_instructions,
+    model=deepseekv3,
 )
 
 
@@ -33,7 +37,7 @@ async def main():
     context = CustomContext(style=choice)
     print(f"Using style: {choice}\n")
 
-    user_message = "Tell me a joke."
+    user_message = "给我讲个笑话."
     print(f"User: {user_message}")
     result = await Runner.run(agent, user_message, context=context)
 

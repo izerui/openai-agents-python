@@ -1,6 +1,7 @@
 import asyncio
 import random
 
+import requests
 from agents import Agent, ItemHelpers, Runner, function_tool
 from openai.types.responses import ResponseTextDeltaEvent
 
@@ -9,22 +10,43 @@ from examples.models import get_agent_chat_model
 
 
 @function_tool
-def how_many_jokes() -> int:
-    return random.randint(1, 10)
+def fetch_url(url:str) -> str:
+    """
+    Fetches the content from the specified URL.
+
+    This function takes a URL as input and retrieves its content.
+    The content fetched from the URL is returned as a string.
+    This is a synchronous function and may block until the request is completed.
+
+    Parameters:
+        url: str
+            The URL from which to fetch content.
+
+    Returns:
+        str
+            The content retrieved from the specified URL.
+    """
+    response = requests.get(url)
+    # 尝试自动检测编码
+    response.encoding = response.apparent_encoding
+    return response.text
 
 deepseekv3 = get_agent_chat_model('deepseek-v3')
 
 async def main():
     agent = Agent(
         name="Joker",
-        instructions="首先调用 how_many_jokes 工具，然后讲这么数量的多笑话。",
-        tools=[how_many_jokes],
+        instructions="你是一个有用的助手，你可以回答有关网页内容的问题。",
+        tools=[fetch_url],
         model=deepseekv3,
     )
 
     result = Runner.run_streamed(
         agent,
-        input="嗨，给我讲几个笑话。",
+        input="""
+        读取内容 https://api-docs.deepseek.com/zh-cn/quick_start/pricing 
+        分析下价格
+        """,
     )
     print("=== Run starting ===")
     async for event in result.stream_events():

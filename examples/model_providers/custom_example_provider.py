@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from agents import (
@@ -15,6 +16,8 @@ from agents import (
     function_tool,
     set_tracing_disabled,
 )
+
+load_dotenv(dotenv_path='../openrouter_qwen.env', verbose=True)
 
 BASE_URL = os.getenv("EXAMPLE_BASE_URL") or ""
 API_KEY = os.getenv("EXAMPLE_API_KEY") or ""

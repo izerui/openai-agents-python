@@ -1,6 +1,7 @@
 import asyncio
 import random
 
+import requests
 from agents import Agent, ItemHelpers, Runner, function_tool
 from openai.types.responses import ResponseTextDeltaEvent
 
@@ -9,22 +10,44 @@ from examples.models import get_agent_chat_model
 
 
 @function_tool
-def how_many_jokes() -> int:
-    return random.randint(1, 10)
+def fetch_url(url:str) -> str:
+    """
+    Fetches the content from the specified URL.
 
-deepseekv3 = get_agent_chat_model('deepseek-v3')
+    This function takes a URL as input and retrieves its content.
+    The content fetched from the URL is returned as a string.
+    This is a synchronous function and may block until the request is completed.
+
+    Parameters:
+        url: str
+            The URL from which to fetch content.
+
+    Returns:
+        str
+            The content retrieved from the specified URL.
+    """
+    response = requests.get(url)
+    # 尝试自动检测编码
+    response.encoding = response.apparent_encoding
+    return response.text
+
+qwen_max = get_agent_chat_model('qwen-max')
 
 async def main():
     agent = Agent(
         name="Joker",
-        instructions="首先调用 how_many_jokes 工具，然后讲这么数量的多笑话。",
-        tools=[how_many_jokes],
-        model=deepseekv3,
+        instructions="你是一个有用的助手，可以抓取网页内容并回答有关网页内容的问题。",
+        tools=[fetch_url],
+        model=qwen_max,
     )
 
     result = Runner.run_streamed(
         agent,
-        input="嗨，给我讲几个笑话。",
+        input="""
+        分别爬取deepseek的定价页面和qwen的定价页面，分析并总结下价格优势对比。
+        deepseek: https://api-docs.deepseek.com/zh-cn/quick_start/pricing
+        qwen: https://finance.sina.com.cn/tech/digi/2024-12-31/doc-inecitzz2090973.shtml
+        """,
     )
     print("=== Run starting ===")
     async for event in result.stream_events():

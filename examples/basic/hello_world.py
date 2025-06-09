@@ -1,54 +1,22 @@
 import asyncio
-import os
 
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from agents import Agent, Runner
+from agents import RunConfig
 
-from agents import (
-    Agent,
-    Model,
-    ModelProvider,
-    OpenAIChatCompletionsModel,
-    RunConfig,
-    Runner,
-    set_tracing_disabled,
-)
-
-load_dotenv(dotenv_path='../deepseek.env', verbose=True)
-
-BASE_URL = os.getenv("OPENAI_BASE_URL") or ""
-API_KEY = os.getenv("OPENAI_API_KEY") or ""
-MODEL_NAME = os.getenv("OPENAI_MODEL_NAME") or ""
-
-if not BASE_URL or not API_KEY or not MODEL_NAME:
-    raise ValueError(
-        "Please set EXAMPLE_BASE_URL, EXAMPLE_API_KEY, EXAMPLE_MODEL_NAME via env var or code."
-    )
-
-client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
-# set_default_openai_api("chat_completions")
-set_tracing_disabled(disabled=True)
-
-
-class CustomModelProvider(ModelProvider):
-    def get_model(self, model_name: str | None) -> Model:
-        return OpenAIChatCompletionsModel(model=model_name or MODEL_NAME, openai_client=client)
-
-
-CUSTOM_MODEL_PROVIDER = CustomModelProvider()
+from examples.models import get_runner_model_provider
 
 
 async def main():
+    deepseekv3_provider = get_runner_model_provider('deepseek-v3')
+
     agent = Agent(
         name="Assistant",
-        instructions="You only respond in haikus.",
+        instructions="使用简短的语句回复",
     )
 
-    result = await Runner.run(
-        agent,
-        "Tell me about recursion in programming, 用中文回答.",
-        run_config=RunConfig(model_provider=CUSTOM_MODEL_PROVIDER),
-    )
+    result = await Runner.run(agent,
+                              "告诉我有关编程递归的信息.",
+                              run_config=RunConfig(model_provider=deepseekv3_provider), )
     print(result.final_output)
     # Function calls itself,
     # Looping in smaller pieces,

@@ -4,6 +4,10 @@ import os
 
 from agents import Agent, Runner
 
+from examples.models import set_global_model
+
+set_global_model('gpt')
+
 FILEPATH = os.path.join(os.path.dirname(__file__), "media/image_bison.jpg")
 
 
@@ -19,7 +23,7 @@ async def main():
 
     agent = Agent(
         name="Assistant",
-        instructions="You are a helpful assistant.",
+        instructions="你是一个有用的助手，你可以回答有关图像的问题。",
     )
 
     result = await Runner.run(
@@ -37,7 +41,7 @@ async def main():
             },
             {
                 "role": "user",
-                "content": "What do you see in this image?",
+                "content": "这张图你怎么看？",
             },
         ],
     )

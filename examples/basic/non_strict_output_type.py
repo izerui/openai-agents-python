@@ -5,6 +5,8 @@ from typing import Any
 
 from agents import Agent, AgentOutputSchema, AgentOutputSchemaBase, Runner
 
+from examples.models import set_global_model
+
 """This example demonstrates how to use an output type that is not in strict mode. Strict mode
 allows us to guarantee valid JSON output, but some schemas are not strict-compatible.
 
@@ -17,11 +19,15 @@ To understand which schemas are strict-compatible, see:
 https://platform.openai.com/docs/guides/structured-outputs?api-mode=responses#supported-schemas
 """
 
+set_global_model('gpt')
 
 @dataclass
 class OutputType:
+    """
+    A simple output type that is not strict-compatible.
+    @param jokes: A list of jokes, indexed by joke number.
+    """
     jokes: dict[int, str]
-    """A list of jokes, indexed by joke number."""
 
 
 class CustomOutputSchema(AgentOutputSchemaBase):

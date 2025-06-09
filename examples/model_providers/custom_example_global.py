@@ -1,6 +1,7 @@
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from agents import (
@@ -11,6 +12,8 @@ from agents import (
     set_default_openai_client,
     set_tracing_disabled,
 )
+
+load_dotenv(dotenv_path='../gpt.env', verbose=True)
 
 BASE_URL = os.getenv("EXAMPLE_BASE_URL") or ""
 API_KEY = os.getenv("EXAMPLE_API_KEY") or ""

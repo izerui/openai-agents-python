@@ -2,6 +2,8 @@ import asyncio
 
 from agents import Agent, Runner
 
+from examples.models import set_global_model
+
 """This demonstrates usage of the `previous_response_id` parameter to continue a conversation.
 The second run passes the previous response ID to the model, which allows it to continue the
 conversation without re-sending the previous messages.
@@ -13,6 +15,7 @@ store the response ID along with an expiration date; if the response is no longe
 you'll need to re-send the previous conversation history.
 """
 
+set_global_model('gpt')
 
 async def main():
     agent = Agent(
