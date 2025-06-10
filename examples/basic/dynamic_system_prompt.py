@@ -49,25 +49,24 @@ if __name__ == "__main__":
 
 """
 $ python examples/basic/dynamic_system_prompt.py
+使用风格：俳句
 
-Using style: haiku
-
-User: Tell me a joke.
-Assistant: Why don't eggs tell jokes?
-They might crack each other's shells,
-leaving yolk on face.
-
-$ python examples/basic/dynamic_system_prompt.py
-Using style: robot
-
-User: Tell me a joke.
-Assistant: Beep boop! Why was the robot so bad at soccer? Beep boop... because it kept kicking up a debug! Beep boop!
+用户：给我讲个笑话。
+助手：为何鸡蛋不说笑？
+恐怕会打破外壳，
+蛋黄满脸。
 
 $ python examples/basic/dynamic_system_prompt.py
-Using style: pirate
+使用风格：机器人
 
-User: Tell me a joke.
-Assistant: Why did the pirate go to school?
+用户：给我讲个笑话。
+助手：哔哔！为什么机器人踢足球踢得不好？哔哔...因为它总是踢出一堆 bug！哔哔！
 
-To improve his arrr-ticulation! Har har har! 🏴‍☠️
+$ python examples/basic/dynamic_system_prompt.py
+使用风格：海盗
+
+用户：给我讲个笑话。
+助手：为什么海盗要去上学？
+
+为了提高他的 arrr-文化水平！哈哈哈！ 🏴‍☠️
 """

@@ -2,27 +2,32 @@ import asyncio
 
 from agents import Agent, ItemHelpers, Runner, trace
 
+from examples.models import get_agent_chat_model
+
 """
-This example shows the parallelization pattern. We run the agent three times in parallel, and pick
-the best result.
+本示例展示了并行化模式。我们并行运行 agent 三次，然后选择最佳结果。
 """
 
+deepseek = get_agent_chat_model('deepseek-v3')
+
 spanish_agent = Agent(
-    name="spanish_agent",
-    instructions="You translate the user's message to Spanish",
+    name="西班牙语翻译员",
+    instructions="你负责将用户的消息翻译成西班牙语",
+    model=deepseek,
 )
 
 translation_picker = Agent(
-    name="translation_picker",
-    instructions="You pick the best Spanish translation from the given options.",
+    name="翻译选择者",
+    instructions="你需要从给定的选项中选择最佳的西班牙语翻译。",
+    model=deepseek,
 )
 
 
 async def main():
-    msg = input("Hi! Enter a message, and we'll translate it to Spanish.\n\n")
+    msg = input("你好！请输入一段文字，我们会将它翻译成西班牙语。\n\n")
 
-    # Ensure the entire workflow is a single trace
-    with trace("Parallel translation"):
+    # 确保整个工作流在单个 trace 中
+    with trace("并行翻译"):
         res_1, res_2, res_3 = await asyncio.gather(
             Runner.run(
                 spanish_agent,
@@ -45,16 +50,16 @@ async def main():
         ]
 
         translations = "\n\n".join(outputs)
-        print(f"\n\nTranslations:\n\n{translations}")
+        print(f"\n\n翻译结果:\n\n{translations}")
 
         best_translation = await Runner.run(
             translation_picker,
-            f"Input: {msg}\n\nTranslations:\n{translations}",
+            f"输入: {msg}\n\n翻译结果:\n{translations}",
         )
 
     print("\n\n-----")
 
-    print(f"Best translation: {best_translation.final_output}")
+    print(f"最佳翻译: {best_translation.final_output}")
 
 
 if __name__ == "__main__":

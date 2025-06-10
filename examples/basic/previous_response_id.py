@@ -4,45 +4,43 @@ from agents import Agent, Runner
 
 from examples.models import set_global_model
 
-"""This demonstrates usage of the `previous_response_id` parameter to continue a conversation.
-The second run passes the previous response ID to the model, which allows it to continue the
-conversation without re-sending the previous messages.
+"""本示例展示了如何使用 `previous_response_id` 参数来继续对话。
+第二次运行时传入前一次响应的 ID，这样模型就可以继续对话而不需要重新发送之前的消息。
 
-Notes:
-1. This only applies to the OpenAI Responses API. Other models will ignore this parameter.
-2. Responses are only stored for 30 days as of this writing, so in production you should
-store the response ID along with an expiration date; if the response is no longer valid,
-you'll need to re-send the previous conversation history.
+注意事项：
+1. 这个功能仅适用于 OpenAI Responses API。其他模型会忽略此参数。
+2. 截至目前，响应内容只会保存 30 天，所以在生产环境中你应该同时存储响应 ID
+   和过期时间；如果响应已经失效，你需要重新发送之前的对话历史。
 """
 
 set_global_model('gpt')
 
 async def main():
     agent = Agent(
-        name="Assistant",
-        instructions="You are a helpful assistant. be VERY concise.",
+        name="助手",
+        instructions="你是一个乐于助人的助手。请保持回答非常简洁。",
     )
 
-    result = await Runner.run(agent, "What is the largest country in South America?")
+    result = await Runner.run(agent, "南美洲最大的国家是哪个？")
     print(result.final_output)
-    # Brazil
+    # 巴西
 
     result = await Runner.run(
         agent,
-        "What is the capital of that country?",
+        "这个国家的首都是哪里？",
         previous_response_id=result.last_response_id,
     )
     print(result.final_output)
-    # Brasilia
+    # 巴西利亚
 
 
 async def main_stream():
     agent = Agent(
-        name="Assistant",
-        instructions="You are a helpful assistant. be VERY concise.",
+        name="助手",
+        instructions="你是一个乐于助人的助手。请保持回答非常简洁。",
     )
 
-    result = Runner.run_streamed(agent, "What is the largest country in South America?")
+    result = Runner.run_streamed(agent, "南美洲最大的国家是哪个？")
 
     async for event in result.stream_events():
         if event.type == "raw_response_event" and event.data.type == "response.output_text.delta":
@@ -52,7 +50,7 @@ async def main_stream():
 
     result = Runner.run_streamed(
         agent,
-        "What is the capital of that country?",
+        "这个国家的首都是哪里？",
         previous_response_id=result.last_response_id,
     )
 
@@ -62,7 +60,7 @@ async def main_stream():
 
 
 if __name__ == "__main__":
-    is_stream = input("Run in stream mode? (y/n): ")
+    is_stream = input("是否以流模式运行？ (y/n): ")
     if is_stream == "y":
         asyncio.run(main_stream())
     else:

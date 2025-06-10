@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -16,25 +18,23 @@ from agents import (
     function_tool,
 )
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
+
+from examples.models import get_agent_chat_model
+
 """
-This example shows how to force the agent to use a tool. It uses `ModelSettings(tool_choice="required")`
-to force the agent to use any tool.
+本示例展示了如何强制 agent 使用工具。它通过 `ModelSettings(tool_choice="required")` 强制 agent 必须使用某个工具。
 
-You can run it with 3 options:
-1. `default`: The default behavior, which is to send the tool output to the LLM. In this case,
-    `tool_choice` is not set, because otherwise it would result in an infinite loop - the LLM would
-    call the tool, the tool would run and send the results to the LLM, and that would repeat
-    (because the model is forced to use a tool every time.)
-2. `first_tool_result`: The first tool result is used as the final output.
-3. `custom`: A custom tool use behavior function is used. The custom function receives all the tool
-    results, and chooses to use the first tool result to generate the final output.
+你可以用三种方式运行它：
+1. `default`：默认行为，即将工具输出发送给 LLM。在这种情况下，`tool_choice` 没有设置，否则会导致无限循环——LLM 会一直调用工具，工具运行后又把结果发给 LLM，如此反复。
+2. `first_tool_result`：第一个工具结果会被用作最终输出。
+3. `custom`：使用自定义的工具使用行为函数。该自定义函数接收所有工具结果，并选择第一个工具结果作为最终输出。
 
-Usage:
+用法：
 python examples/agent_patterns/forcing_tool_use.py -t default
 python examples/agent_patterns/forcing_tool_use.py -t first_tool
 python examples/agent_patterns/forcing_tool_use.py -t custom
 """
-
 
 class Weather(BaseModel):
     city: str
@@ -53,7 +53,7 @@ async def custom_tool_use_behavior(
 ) -> ToolsToFinalOutputResult:
     weather: Weather = results[0].output
     return ToolsToFinalOutputResult(
-        is_final_output=True, final_output=f"{weather.city} is {weather.conditions}."
+        is_final_output=True, final_output=f"{weather.city} 的天气是 {weather.conditions}。"
     )
 
 
@@ -67,17 +67,20 @@ async def main(tool_use_behavior: Literal["default", "first_tool", "custom"] = "
     elif tool_use_behavior == "custom":
         behavior = custom_tool_use_behavior
 
+    deepseek = get_agent_chat_model('deepseek-v3')
+
     agent = Agent(
-        name="Weather agent",
-        instructions="You are a helpful agent.",
+        name="天气 agent",
+        instructions="你是一个乐于助人的 agent。",
         tools=[get_weather],
         tool_use_behavior=behavior,
         model_settings=ModelSettings(
             tool_choice="required" if tool_use_behavior != "default" else None
         ),
+        model=deepseek,
     )
 
-    result = await Runner.run(agent, input="What's the weather in Tokyo?")
+    result = await Runner.run(agent, input="东京的天气怎么样？")
     print(result.final_output)
 
 
@@ -91,9 +94,7 @@ if __name__ == "__main__":
         type=str,
         required=True,
         choices=["default", "first_tool", "custom"],
-        help="The behavior to use for tool use. Default will cause tool outputs to be sent to the model. "
-        "first_tool_result will cause the first tool result to be used as the final output. "
-        "custom will use a custom tool use behavior function.",
+        help="工具使用行为。default 表示工具输出会被发送给模型。first_tool_result 表示第一个工具结果会被用作最终输出。custom 表示使用自定义的工具使用行为函数。",
     )
     args = parser.parse_args()
     asyncio.run(main(args.tool_use_behavior))

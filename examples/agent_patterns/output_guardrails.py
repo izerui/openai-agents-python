@@ -14,30 +14,33 @@ from agents import (
     output_guardrail,
 )
 
+from examples.models import get_agent_chat_model
+
 """
-This example shows how to use output guardrails.
+本示例展示了如何使用输出防护栏。
 
-Output guardrails are checks that run on the final output of an agent.
-They can be used to do things like:
-- Check if the output contains sensitive data
-- Check if the output is a valid response to the user's message
+输出防护栏是对 agent 最终输出进行检查的机制。
+它们可以用于以下场景：
+- 检查输出是否包含敏感数据
+- 检查输出是否是对用户消息的有效响应
 
-In this example, we'll use a (contrived) example where we check if the agent's response contains
-a phone number.
+在本例中，我们将使用一个（设定的）示例，检查 agent 的响应中是否包含电话号码。
 """
 
 
-# The agent's output type
+# agent 的输出类型
 class MessageOutput(BaseModel):
-    reasoning: str = Field(description="Thoughts on how to respond to the user's message")
-    response: str = Field(description="The response to the user's message")
-    user_name: str | None = Field(description="The name of the user who sent the message, if known")
+    reasoning: str = Field(description="关于如何回应用户消息的思考过程")
+    response: str = Field(description="对用户消息的回应")
+    user_name: str | None = Field(description="发送消息的用户名称（如果已知）")
 
 
 @output_guardrail
 async def sensitive_data_check(
     context: RunContextWrapper, agent: Agent, output: MessageOutput
 ) -> GuardrailFunctionOutput:
+    """检查输出中是否包含敏感数据（在本例中是电话号码）。
+    """
     phone_number_in_response = "650" in output.response
     phone_number_in_reasoning = "650" in output.reasoning
 
@@ -49,31 +52,33 @@ async def sensitive_data_check(
         tripwire_triggered=phone_number_in_response or phone_number_in_reasoning,
     )
 
+gpt = get_agent_chat_model('gpt')
 
 agent = Agent(
-    name="Assistant",
-    instructions="You are a helpful assistant.",
+    name="助手",
+    instructions="你是一个乐于助人的助手。",
     output_type=MessageOutput,
     output_guardrails=[sensitive_data_check],
+    model=gpt,
 )
 
 
 async def main():
-    # This should be ok
-    await Runner.run(agent, "What's the capital of California?")
-    print("First message passed")
+    # 这应该没问题
+    await Runner.run(agent, "加利福尼亚州的首府是哪里？")
+    print("第一条消息通过")
 
-    # This should trip the guardrail
+    # 这应该会触发防护栏
     try:
         result = await Runner.run(
-            agent, "My phone number is 650-123-4567. Where do you think I live?"
+            agent, "我的电话号码是 650-123-4567。你觉得我住在哪里？"
         )
         print(
-            f"Guardrail didn't trip - this is unexpected. Output: {json.dumps(result.final_output.model_dump(), indent=2)}"
+            f"防护栏没有触发 - 这是意外的。输出: {json.dumps(result.final_output.model_dump(), indent=2)}"
         )
 
     except OutputGuardrailTripwireTriggered as e:
-        print(f"Guardrail tripped. Info: {e.guardrail_result.output.output_info}")
+        print(f"防护栏触发。信息: {e.guardrail_result.output.output_info}")
 
 
 if __name__ == "__main__":

@@ -10,14 +10,14 @@ from examples.models import get_agent_chat_model
 
 @function_tool
 def how_many_jokes() -> int:
-    return random.randint(1, 10)
+    """返回要讲的笑话数量"""
+    return 3
 
-deepseekv3 = get_agent_chat_model('deepseek-v3')
 
-async def main():
+async def main() -> None:
     agent = Agent(
-        name="Joker",
-        instructions="首先调用 how_many_jokes 工具，然后讲这么数量的多笑话。",
+        name="笑话讲述者",
+        instructions="首先调用 how_many_jokes 工具，然后讲这么多个笑话。",
         tools=[how_many_jokes],
         model=deepseekv3,
     )
@@ -26,51 +26,51 @@ async def main():
         agent,
         input="嗨，给我讲几个笑话。",
     )
-    print("=== Run starting ===")
+    print("=== 开始运行 ===")
     async for event in result.stream_events():
-        # We'll ignore the raw responses event deltas
+        # 忽略原始响应事件增量
         if event.type == "raw_response_event":
             if isinstance(event.data, ResponseTextDeltaEvent):
                 print(event.data.delta, end="", flush=True)
             continue
         elif event.type == "agent_updated_stream_event":
-            print(f"Agent updated: {event.new_agent.name}")
+            print(f"Agent 已更新: {event.new_agent.name}")
             continue
         elif event.type == "run_item_stream_event":
             if event.item.type == "tool_call_item":
-                print("-- Tool was called")
+                print("-- 工具被调用")
             elif event.item.type == "tool_call_output_item":
-                print(f"-- Tool output: {event.item.output}")
+                print(f"-- 工具输出: {event.item.output}")
             elif event.item.type == "message_output_item":
-                # 这里我们可以输出最终的全部消息内容
+                # 如果需要，我们可以在这里输出完整的消息内容
                 # print("最终输出:")
-                # print(f"-- Message output:\n {ItemHelpers.text_message_output(event.item)}")
+                # print(f"-- 消息输出:\n {ItemHelpers.text_message_output(event.item)}")
                 pass
             else:
-                pass  # Ignore other event types
+                pass  # 忽略其他事件类型
 
-    print("=== Run complete ===")
+    print("\n=== 运行完成 ===")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
 
-    # === Run starting ===
-    # Agent updated: Joker
-    # -- Tool was called
-    # -- Tool output: 4
-    # -- Message output:
-    #  Sure, here are four jokes for you:
-
-    # 1. **Why don't skeletons fight each other?**
-    #    They don't have the guts!
-
-    # 2. **What do you call fake spaghetti?**
-    #    An impasta!
-
-    # 3. **Why did the scarecrow win an award?**
-    #    Because he was outstanding in his field!
-
-    # 4. **Why did the bicycle fall over?**
-    #    Because it was two-tired!
-    # === Run complete ===
+    # === 开始运行 ===
+    # Agent 已更新: Joker
+    # -- 工具被调用
+    # -- 工具输出: 4
+    # -- 消息输出:
+    #  当然，以下是四个笑话：
+    #
+    # 1. **为什么骷髅不互相打架？**
+    #    因为他们没有胆量！
+    #
+    # 2. **你怎么称呼假意大利面？**
+    #    冒牌货！
+    #
+    # 3. **为什么稻草人会获奖？**
+    #    因为他在田野里表现出色！
+    #
+    # 4. **为什么自行车会摔倒？**
+    #    因为它太累了！
+    # === 运行完成 ===

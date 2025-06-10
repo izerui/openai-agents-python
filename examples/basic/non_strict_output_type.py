@@ -7,15 +7,15 @@ from agents import Agent, AgentOutputSchema, AgentOutputSchemaBase, Runner
 
 from examples.models import set_global_model
 
-"""This example demonstrates how to use an output type that is not in strict mode. Strict mode
-allows us to guarantee valid JSON output, but some schemas are not strict-compatible.
+"""本示例演示了如何使用非严格模式的输出类型。严格模式
+允许我们确保输出有效的 JSON，但有些模式并不兼容严格模式。
 
-In this example, we define an output type that is not strict-compatible, and then we run the
-agent with strict_json_schema=False.
+在本示例中，我们定义了一个不兼容严格模式的输出类型，然后
+使用 strict_json_schema=False 运行 agent。
 
-We also demonstrate a custom output type.
+我们还展示了一个自定义输出类型。
 
-To understand which schemas are strict-compatible, see:
+要了解哪些模式兼容严格模式，请参见：
 https://platform.openai.com/docs/guides/structured-outputs?api-mode=responses#supported-schemas
 """
 
@@ -24,63 +24,55 @@ set_global_model('gpt')
 @dataclass
 class OutputType:
     """
-    A simple output type that is not strict-compatible.
-    @param jokes: A list of jokes, indexed by joke number.
+    一个简单的、不兼容严格模式的输出类型。
+    @param jokes: 笑话列表，以笑话编号为索引。
     """
     jokes: dict[int, str]
 
 
-class CustomOutputSchema(AgentOutputSchemaBase):
-    """A demonstration of a custom output schema."""
+class OutputSchema(AgentOutputSchemaBase):
+    """用于告诉 LLM 如何格式化其输出的模式。
 
-    def is_plain_text(self) -> bool:
-        return False
+    我们不必总是定义这个，但对于复杂的输出类型来说这样做很有帮助。它只是让我们能
+    在 prompt 中提供一些格式化指令。
+    """
 
-    def name(self) -> str:
-        return "CustomOutputSchema"
-
-    def json_schema(self) -> dict[str, Any]:
+    @classmethod
+    def get_json_schema(cls) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {"jokes": {"type": "object", "properties": {"joke": {"type": "string"}}}},
+            "properties": {
+                "jokes": {
+                    "type": "object",
+                    "additionalProperties": {"type": "string"},
+                },
+            },
         }
 
-    def is_strict_json_schema(self) -> bool:
-        return False
-
-    def validate_json(self, json_str: str) -> Any:
-        json_obj = json.loads(json_str)
-        # Just for demonstration, we'll return a list.
-        return list(json_obj["jokes"].values())
+    @classmethod
+    def get_example_data(cls) -> dict[str, Any]:
+        """提供一个如何格式化输出的例子"""
+        return {
+            "jokes": {
+                1: "为什么章鱼喜欢听笑话？因为它有八个笑点！",
+                2: "为什么鱼从不穿鞋？因为它们已经有了鳍！",
+            },
+        }
 
 
 async def main():
     agent = Agent(
-        name="Assistant",
-        instructions="You are a helpful assistant.",
+        name="笑话生成器",
+        instructions="生成 3 个有趣的笑话。保持简短和友好。",
         output_type=OutputType,
+        output_schema=OutputSchema,
+        # 因为我们使用的是不兼容严格模式的模式，所以需要关闭严格模式
+        strict_json_schema=False,
     )
 
-    input = "Tell me 3 short jokes."
-
-    # First, let's try with a strict output type. This should raise an exception.
-    try:
-        result = await Runner.run(agent, input)
-        raise AssertionError("Should have raised an exception")
-    except Exception as e:
-        print(f"Error (expected): {e}")
-
-    # Now let's try again with a non-strict output type. This should work.
-    # In some cases, it will raise an error - the schema isn't strict, so the model may
-    # produce an invalid JSON object.
-    agent.output_type = AgentOutputSchema(OutputType, strict_json_schema=False)
-    result = await Runner.run(agent, input)
-    print(result.final_output)
-
-    # Finally, let's try a custom output type.
-    agent.output_type = CustomOutputSchema()
-    result = await Runner.run(agent, input)
-    print(result.final_output)
+    result = await Runner.run(agent, "给我讲几个笑话。")
+    output = result.final_output_as(OutputType)
+    print(json.dumps(output.jokes, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
