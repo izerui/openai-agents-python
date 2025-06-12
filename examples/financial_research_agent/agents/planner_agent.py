@@ -2,34 +2,37 @@ from pydantic import BaseModel
 
 from agents import Agent
 
-# Generate a plan of searches to ground the financial analysis.
-# For a given financial question or company, we want to search for
-# recent news, official filings, analyst commentary, and other
-# relevant background.
+from examples.models import get_agent_chat_model
+
+# 生成一个搜索计划来支持金融分析。
+# 对于给定的金融问题或公司，我们需要搜索：
+# 最新新闻、官方文件、分析师评论和其他
+# 相关背景信息。
 PROMPT = (
-    "You are a financial research planner. Given a request for financial analysis, "
-    "produce a set of web searches to gather the context needed. Aim for recent "
-    "headlines, earnings calls or 10‑K snippets, analyst commentary, and industry background. "
-    "Output between 5 and 15 search terms to query for."
+    "你是一位金融研究规划师。给定一个金融分析请求，"
+    "制定一系列网络搜索来收集所需的背景信息。目标是获取最新的"
+    "新闻标题、财报电话会议或10-K文件摘要、分析师评论和行业背景信息。"
+    "请提供5到15个搜索关键词。"
 )
 
 
 class FinancialSearchItem(BaseModel):
     reason: str
-    """Your reasoning for why this search is relevant."""
+    """此搜索项的相关性理由。"""
 
     query: str
-    """The search term to feed into a web (or file) search."""
+    """用于网络（或文件）搜索的关键词。"""
 
 
 class FinancialSearchPlan(BaseModel):
     searches: list[FinancialSearchItem]
-    """A list of searches to perform."""
+    """要执行的搜索列表。"""
 
+gpt = get_agent_chat_model('gpt')
 
 planner_agent = Agent(
     name="FinancialPlannerAgent",
     instructions=PROMPT,
-    model="o3-mini",
+    model=gpt,
     output_type=FinancialSearchPlan,
 )

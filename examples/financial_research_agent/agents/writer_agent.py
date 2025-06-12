@@ -2,33 +2,35 @@ from pydantic import BaseModel
 
 from agents import Agent
 
-# Writer agent brings together the raw search results and optionally calls out
-# to sub‑analyst tools for specialized commentary, then returns a cohesive markdown report.
+from examples.models import get_agent_chat_model
+
+# 写作代理负责整合原始搜索结果，并可选择调用
+# 专业分析子代理以获取专业评论，最终生成一份完整的 markdown 报告。
 WRITER_PROMPT = (
-    "You are a senior financial analyst. You will be provided with the original query and "
-    "a set of raw search summaries. Your task is to synthesize these into a long‑form markdown "
-    "report (at least several paragraphs) including a short executive summary and follow‑up "
-    "questions. If needed, you can call the available analysis tools (e.g. fundamentals_analysis, "
-    "risk_analysis) to get short specialist write‑ups to incorporate."
+    "你是一位资深金融分析师。你将获得原始查询和一组原始搜索摘要。"
+    "你的任务是将这些内容整合成一份长篇 markdown 报告（至少包含几个段落），"
+    "需要包含一个简短的执行摘要和后续问题。如有需要，你可以调用可用的分析工具"
+    "（如 fundamentals_analysis、risk_analysis）来获取专业分析师的简短评论并整合进去。"
 )
 
 
 class FinancialReportData(BaseModel):
     short_summary: str
-    """A short 2‑3 sentence executive summary."""
+    """2-3句话的执行摘要。"""
 
     markdown_report: str
-    """The full markdown report."""
+    """完整的 markdown 格式报告。"""
 
     follow_up_questions: list[str]
-    """Suggested follow‑up questions for further research."""
+    """建议的后续研究问题。"""
 
+gpt = get_agent_chat_model('gpt')
 
-# Note: We will attach handoffs to specialist analyst agents at runtime in the manager.
-# This shows how an agent can use handoffs to delegate to specialized subagents.
+# 注意：我们将在管理器运行时附加专业分析师代理的调用。
+# 这展示了一个代理如何使用调用来委托专业子代理。
 writer_agent = Agent(
     name="FinancialWriterAgent",
     instructions=WRITER_PROMPT,
-    model="gpt-4.5-preview-2025-02-27",
+    model=gpt,
     output_type=FinancialReportData,
 )

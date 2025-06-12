@@ -9,15 +9,15 @@ from agents.extensions import handoff_filters
 
 @function_tool
 def random_number_tool(max: int) -> int:
-    """Return a random integer between 0 and the given maximum."""
+    """返回一个介于 0 和给定最大值之间的随机整数。"""
     return random.randint(0, max)
 
 
 def spanish_handoff_message_filter(handoff_message_data: HandoffInputData) -> HandoffInputData:
-    # First, we'll remove any tool-related messages from the message history
+    # 首先，我们将从消息历史记录中删除所有与工具相关的消息
     handoff_message_data = handoff_filters.remove_all_tools(handoff_message_data)
 
-    # Second, we'll also remove the first two items from the history, just for demonstration
+    # 其次，我们还将删除历史记录中的前两项，仅用于演示
     history = (
         tuple(handoff_message_data.input_history[2:])
         if isinstance(handoff_message_data.input_history, tuple)
@@ -32,58 +32,58 @@ def spanish_handoff_message_filter(handoff_message_data: HandoffInputData) -> Ha
 
 
 first_agent = Agent(
-    name="Assistant",
-    instructions="Be extremely concise.",
+    name="助手",
+    instructions="请保持回答非常简洁。",
     tools=[random_number_tool],
 )
 
 spanish_agent = Agent(
-    name="Spanish Assistant",
-    instructions="You only speak Spanish and are extremely concise.",
-    handoff_description="A Spanish-speaking assistant.",
+    name="西班牙语助手",
+    instructions="你只说西班牙语，并且回答非常简洁。",
+    handoff_description="一个说西班牙语的助手。",
 )
 
 second_agent = Agent(
-    name="Assistant",
+    name="助手",
     instructions=(
-        "Be a helpful assistant. If the user speaks Spanish, handoff to the Spanish assistant."
+        "做一个有帮助的助手。如果用户说西班牙语，请转交给西班牙语助手。"
     ),
     handoffs=[handoff(spanish_agent, input_filter=spanish_handoff_message_filter)],
 )
 
 
 async def main():
-    # Trace the entire run as a single workflow
-    with trace(workflow_name="Message filtering"):
-        # 1. Send a regular message to the first agent
-        result = await Runner.run(first_agent, input="Hi, my name is Sora.")
+    # 将整个运行过程作为单个工作流进行追踪
+    with trace(workflow_name="消息过滤"):
+        # 1. 向第一个代理发送普通消息
+        result = await Runner.run(first_agent, input="你好，我叫 Sora。")
 
-        print("Step 1 done")
+        print("步骤 1 完成")
 
-        # 2. Ask it to generate a number
+        # 2. 让它生成一个随机数
         result = await Runner.run(
             first_agent,
             input=result.to_input_list()
-            + [{"content": "Can you generate a random number between 0 and 100?", "role": "user"}],
+            + [{"content": "你能生成一个介于 0 和 100 之间的随机数吗？", "role": "user"}],
         )
 
-        print("Step 2 done")
+        print("步骤 2 完成")
 
-        # 3. Call the second agent
+        # 3. 调用第二个代理
         result = await Runner.run(
             second_agent,
             input=result.to_input_list()
             + [
                 {
-                    "content": "I live in New York City. Whats the population of the city?",
+                    "content": "我住在纽约市。这个城市的人口是多少？",
                     "role": "user",
                 }
             ],
         )
 
-        print("Step 3 done")
+        print("步骤 3 完成")
 
-        # 4. Cause a handoff to occur
+        # 4. 触发语言切换移交
         result = await Runner.run(
             second_agent,
             input=result.to_input_list()
@@ -95,79 +95,15 @@ async def main():
             ],
         )
 
-        print("Step 4 done")
+        print("步骤 4 完成")
 
-    print("\n===Final messages===\n")
+    print("\n===最终消息列表===\n")
 
-    # 5. That should have caused spanish_handoff_message_filter to be called, which means the
-    # output should be missing the first two messages, and have no tool calls.
-    # Let's print the messages to see what happened
+    # 5. 这将触发 spanish_handoff_message_filter 的调用
+    # 输出将不包含前两条消息，且没有工具调用
+    # 让我们打印消息看看结果如何
     for message in result.to_input_list():
-        print(json.dumps(message, indent=2))
-        # tool_calls = message.tool_calls if isinstance(message, AssistantMessage) else None
-
-        # print(f"{message.role}: {message.content}\n  - Tool calls: {tool_calls or 'None'}")
-        """
-        $python examples/handoffs/message_filter.py
-        Step 1 done
-        Step 2 done
-        Step 3 done
-        Step 4 done
-
-        ===Final messages===
-
-        {
-            "content": "Can you generate a random number between 0 and 100?",
-            "role": "user"
-        }
-        {
-        "id": "...",
-        "content": [
-            {
-            "annotations": [],
-            "text": "Sure! Here's a random number between 0 and 100: **42**.",
-            "type": "output_text"
-            }
-        ],
-        "role": "assistant",
-        "status": "completed",
-        "type": "message"
-        }
-        {
-        "content": "I live in New York City. Whats the population of the city?",
-        "role": "user"
-        }
-        {
-        "id": "...",
-        "content": [
-            {
-            "annotations": [],
-            "text": "As of the most recent estimates, the population of New York City is approximately 8.6 million people. However, this number is constantly changing due to various factors such as migration and birth rates. For the latest and most accurate information, it's always a good idea to check the official data from sources like the U.S. Census Bureau.",
-            "type": "output_text"
-            }
-        ],
-        "role": "assistant",
-        "status": "completed",
-        "type": "message"
-        }
-        {
-        "content": "Por favor habla en espa\u00f1ol. \u00bfCu\u00e1l es mi nombre y d\u00f3nde vivo?",
-        "role": "user"
-        }
-        {
-        "id": "...",
-        "content": [
-            {
-            "annotations": [],
-            "text": "No tengo acceso a esa informaci\u00f3n personal, solo s\u00e9 lo que me has contado: vives en Nueva York.",
-            "type": "output_text"
-            }
-        ],
-        "role": "assistant",
-        "status": "completed",
-        "type": "message"
-        }
-        """
+        print(json.dumps(message, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

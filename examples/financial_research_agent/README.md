@@ -1,38 +1,36 @@
-# Financial Research Agent Example
+# 金融研究代理示例
 
-This example shows how you might compose a richer financial research agent using the Agents SDK. The pattern is similar to the `research_bot` example, but with more specialized sub‑agents and a verification step.
+本示例展示了如何使用 Agents SDK 构建一个更强大的金融研究代理。这种模式类似于 `research_bot` 示例，但增加了更专业的子代理和验证步骤。
 
-The flow is:
+工作流程如下：
 
-1. **Planning**: A planner agent turns the end user’s request into a list of search terms relevant to financial analysis – recent news, earnings calls, corporate filings, industry commentary, etc.
-2. **Search**: A search agent uses the built‑in `WebSearchTool` to retrieve terse summaries for each search term. (You could also add `FileSearchTool` if you have indexed PDFs or 10‑Ks.)
-3. **Sub‑analysts**: Additional agents (e.g. a fundamentals analyst and a risk analyst) are exposed as tools so the writer can call them inline and incorporate their outputs.
-4. **Writing**: A senior writer agent brings together the search snippets and any sub‑analyst summaries into a long‑form markdown report plus a short executive summary.
-5. **Verification**: A final verifier agent audits the report for obvious inconsistencies or missing sourcing.
+1. **规划**：规划代理将最终用户的请求转换为与金融分析相关的搜索词列表 – 包括最新新闻、财报电话会议、企业文件、行业评论等。
+2. **搜索**：搜索代理使用内置的 `WebSearchTool` 为每个搜索词检索简要摘要。（如果您有已索引的 PDF 或 10-K 文件，还可以添加 `FileSearchTool`。）
+3. **子分析师**：额外的代理（例如基本面分析师和风险分析师）作为工具暴露出来，以便写作者可以内联调用它们并整合其输出。
+4. **写作**：高级写作代理将搜索片段和任何子分析师的总结整合成一份长篇 markdown 报告，并附带一个简短的执行摘要。
+5. **验证**：最后的验证代理会审核报告，检查明显的不一致之处或缺失的来源引用。
 
-You can run the example with:
+您可以通过以下命令运行示例：
 
 ```bash
 python -m examples.financial_research_agent.main
 ```
 
-and enter a query like:
+然后输入类似这样的查询：
 
 ```
-Write up an analysis of Apple Inc.'s most recent quarter.
+写一份关于苹果公司最近一个季度的分析。
 ```
 
-### Starter prompt
+### 起始提示词
 
-The writer agent is seeded with instructions similar to:
+写作代理的初始指令类似于：
 
 ```
-You are a senior financial analyst. You will be provided with the original query
-and a set of raw search summaries. Your job is to synthesize these into a
-long‑form markdown report (at least several paragraphs) with a short executive
-summary. You also have access to tools like `fundamentals_analysis` and
-`risk_analysis` to get short specialist write‑ups if you want to incorporate them.
-Add a few follow‑up questions for further research.
+你是一位资深金融分析师。你将获得原始查询和一组原始搜索摘要。你的工作是将这些内容合成为一份长篇 markdown 
+报告（至少包含几个段落）以及一个简短的执行摘要。你还可以使用像 `fundamentals_analysis` 和 
+`risk_analysis` 这样的工具来获取专业分析的简短写作，如果你想将它们整合进去的话。
+最后添加一些用于进一步研究的后续问题。
 ```
 
-You can tweak these prompts and sub‑agents to suit your own data sources and preferred report structure.
+您可以根据自己的数据源和偏好的报告结构来调整这些提示词和子代理。
