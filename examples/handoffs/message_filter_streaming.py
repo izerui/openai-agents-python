@@ -36,6 +36,12 @@ def spanish_handoff_message_filter(handoff_message_data: HandoffInputData) -> Ha
     )
 
 
+class PrintAgentHooks(AgentHooks):
+
+    async def on_start(self, context: RunContextWrapper[TContext], agent: Agent[TContext]) -> None:
+        print(f'当前: {agent.name} 代理处理的请求已开始。')
+        return await super().on_start(context, agent)
+
 deepseek = get_agent_chat_model('deepseek-v3')
 
 # 第一个代理：简洁助手
@@ -44,16 +50,8 @@ first_agent = Agent(
     instructions="保持极度简洁的回答。",
     tools=[random_number_tool],
     model=deepseek,
+    hooks=PrintAgentHooks(),
 )
-
-class CustomAgentHooks(AgentHooks):
-    def __init__(self, display_name: str):
-        self.display_name = display_name
-
-    async def on_start(self, context: RunContextWrapper[TContext], agent: Agent[TContext]) -> None:
-        print(f'当{self.display_name} 代理处理的请求已开始。')
-        return await super().on_start(context, agent)
-
 
 # 西班牙语代理
 spanish_agent = Agent(
@@ -61,11 +59,11 @@ spanish_agent = Agent(
     instructions="只使用西班牙语交流，并保持极度简洁。",
     handoff_description="一个西班牙语助手。",
     model=deepseek,
-    hooks=CustomAgentHooks(display_name="西班牙语助手")
+    hooks=PrintAgentHooks()
 )
 
 
-def on_spanish_agent_handoff(_ctx: RunContextWrapper[None], data = None) -> None:
+def on_spanish_agent_handoff(_ctx: RunContextWrapper[None]) -> None:
     print('开始交接到西班牙语助手。')
 
 # 第二个代理：通用助手
@@ -76,6 +74,7 @@ second_agent = Agent(
     ),
     handoffs=[handoff(spanish_agent, input_filter=spanish_handoff_message_filter, on_handoff=on_spanish_agent_handoff)],
     model=deepseek,
+    hooks=PrintAgentHooks(),
 )
 
 
