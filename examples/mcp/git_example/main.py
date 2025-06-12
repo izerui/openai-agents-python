@@ -3,13 +3,16 @@ import shutil
 
 from agents import Agent, Runner, trace
 from agents.mcp import MCPServer, MCPServerStdio
+from examples.models import get_agent_chat_model
 
 
 async def run(mcp_server: MCPServer, directory_path: str):
+    deepseek = get_agent_chat_model('deepseek-v3')
     agent = Agent(
         name="Assistant",
         instructions=f"Answer questions about the git repository at {directory_path}, use that for repo_path",
         mcp_servers=[mcp_server],
+        model=deepseek,
     )
 
     message = "Who's the most frequent contributor?"
