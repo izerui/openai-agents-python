@@ -1,8 +1,7 @@
 import asyncio
-import os
 import shutil
 
-from agents import Agent, Runner, gen_trace_id, trace
+from agents import Agent, Runner
 from agents.mcp import MCPServer, MCPServerStdio
 
 from examples.models import get_agent_chat_model
@@ -12,45 +11,39 @@ async def run(mcp_server: MCPServer):
     deepseek = get_agent_chat_model("deepseek-v3")
     agent = Agent(
         name="Assistant",
-        instructions="Use the tools to read the filesystem and answer questions based on those files.",
+        instructions="使用 MCP 来操作浏览器进行网页操作。",
         mcp_servers=[mcp_server],
         model=deepseek,
     )
 
     # List the files it can read
-    message = "Read the files and list them."
+    message = "智能体 mcp client 跟 mcp server 通过什么方式建立沟通 mcp 几种方式？"
     print(f"Running: {message}")
     result = await Runner.run(starting_agent=agent, input=message)
     print(result.final_output)
 
     # Ask about books
-    message = "What is my #1 favorite book?"
+    message = "访问下youtube，看看我最喜欢的歌曲列表。"
     print(f"\n\nRunning: {message}")
     result = await Runner.run(starting_agent=agent, input=message)
     print(result.final_output)
 
     # Ask a question that reads then reasons.
-    message = "Look at my favorite songs. Suggest one new song that I might like."
+    message = "从sina中获取最新的新闻标题，并告诉我有哪些？"
     print(f"\n\nRunning: {message}")
     result = await Runner.run(starting_agent=agent, input=message)
     print(result.final_output)
 
 
 async def main():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    samples_dir = os.path.join(current_dir, "sample_files")
-
     async with MCPServerStdio(
-        name="Filesystem Server, via npx",
-        params={
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-filesystem", samples_dir],
-        },
+            name="控制浏览器进行相关操作",
+            params={
+                "command": "npx",
+                "args": ["@playwright/mcp@latest"],
+            },
     ) as server:
-        trace_id = gen_trace_id()
-        with trace(workflow_name="MCP Filesystem Example", trace_id=trace_id):
-            print(f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}\n")
-            await run(server)
+        await run(server)
 
 
 if __name__ == "__main__":
