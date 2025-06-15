@@ -1,25 +1,40 @@
-# Research bot
+# 研究机器人
 
-This is a simple example of a multi-agent research bot. To run it:
+这是一个简单的多智能体研究机器人示例。运行方法：
 
 ```bash
 python -m examples.research_bot.main
 ```
 
-## Architecture
+## 架构设计
 
-The flow is:
+工作流程如下：
 
-1. User enters their research topic
-2. `planner_agent` comes up with a plan to search the web for information. The plan is a list of search queries, with a search term and a reason for each query.
-3. For each search item, we run a `search_agent`, which uses the Web Search tool to search for that term and summarize the results. These all run in parallel.
-4. Finally, the `writer_agent` receives the search summaries, and creates a written report.
+1. **用户输入**：用户输入他们想要研究的主题
+2. **制定计划**：`planner_agent`（规划智能体）制定网络搜索信息的计划。该计划包含一系列搜索查询，每个查询都有搜索词和搜索理由
+3. **并行搜索**：对于每个搜索项目，我们运行一个`search_agent`（搜索智能体），使用网络搜索工具搜索该词条并总结结果。这些搜索任务全部并行执行
+4. **生成报告**：最后，`writer_agent`（写作智能体）接收搜索摘要，并创建一份书面研究报告
 
-## Suggested improvements
+## 智能体角色
 
-If you're building your own research bot, some ideas to add to this are:
+- **规划智能体**：分析研究主题，制定详细的搜索策略
+- **搜索智能体**：执行网络搜索，提取和总结相关信息
+- **写作智能体**：整合所有搜索结果，生成结构化的研究报告
 
-1. Retrieval: Add support for fetching relevant information from a vector store. You could use the File Search tool for this.
-2. Image and file upload: Allow users to attach PDFs or other files, as baseline context for the research.
-3. More planning and thinking: Models often produce better results given more time to think. Improve the planning process to come up with a better plan, and add an evaluation step so that the model can choose to improve its results, search for more stuff, etc.
-4. Code execution: Allow running code, which is useful for data analysis.
+## 改进建议
+
+如果你要构建自己的研究机器人，可以考虑添加以下功能：
+
+1. **检索增强**：添加对向量存储中相关信息的检索支持。你可以使用文件搜索工具来实现这一点
+2. **多媒体支持**：允许用户上传PDF或其他文件，作为研究的基础上下文
+3. **深度规划与思考**：模型通常在有更多思考时间时产生更好的结果。改进规划过程以制定更好的计划，并添加评估步骤，让模型可以选择改进结果、搜索更多内容等
+4. **代码执行**：允许运行代码，这对数据分析很有用
+5. **引用管理**：为搜索结果添加来源引用，提高报告的可信度
+6. **交互式优化**：允许用户在研究过程中提供反馈，动态调整搜索策略
+
+## 技术特点
+
+- **并行处理**：多个搜索任务同时执行，提高效率
+- **模块化设计**：每个智能体职责明确，易于维护和扩展
+- **智能规划**：基于主题自动生成最优搜索策略
+- **结果整合**：将分散的搜索结果整合成连贯的研究报告

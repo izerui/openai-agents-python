@@ -1,6 +1,6 @@
 import asyncio
 
-from .manager import ResearchManager
+from manager import ResearchManager
 
 
 async def main() -> None:

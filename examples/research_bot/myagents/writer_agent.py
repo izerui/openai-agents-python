@@ -2,6 +2,7 @@
 from pydantic import BaseModel
 
 from agents import Agent
+from examples.models import get_agent_chat_model
 
 PROMPT = (
     "You are a senior researcher tasked with writing a cohesive report for a research query. "
@@ -13,6 +14,7 @@ PROMPT = (
     "for 5-10 pages of content, at least 1000 words."
 )
 
+gpt = get_agent_chat_model('gpt')
 
 class ReportData(BaseModel):
     short_summary: str
@@ -28,6 +30,6 @@ class ReportData(BaseModel):
 writer_agent = Agent(
     name="WriterAgent",
     instructions=PROMPT,
-    model="o3-mini",
+    model=gpt,
     output_type=ReportData,
 )

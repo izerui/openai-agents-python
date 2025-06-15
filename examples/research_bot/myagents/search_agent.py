@@ -1,5 +1,6 @@
 from agents import Agent, WebSearchTool
 from agents.model_settings import ModelSettings
+from examples.models import get_agent_chat_model
 
 INSTRUCTIONS = (
     "You are a research assistant. Given a search term, you search the web for that term and "
@@ -10,9 +11,12 @@ INSTRUCTIONS = (
     "itself."
 )
 
+gpt = get_agent_chat_model('gpt')
+
 search_agent = Agent(
     name="Search agent",
     instructions=INSTRUCTIONS,
     tools=[WebSearchTool()],
+    model=gpt,
     model_settings=ModelSettings(tool_choice="required"),
 )

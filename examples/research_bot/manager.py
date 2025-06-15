@@ -7,10 +7,10 @@ from rich.console import Console
 
 from agents import Runner, custom_span, gen_trace_id, trace
 
-from .agents.planner_agent import WebSearchItem, WebSearchPlan, planner_agent
-from .agents.search_agent import search_agent
-from .agents.writer_agent import ReportData, writer_agent
-from .printer import Printer
+from myagents.planner_agent import WebSearchItem, WebSearchPlan, planner_agent
+from myagents.search_agent import search_agent
+from myagents.writer_agent import ReportData, writer_agent
+from printer import Printer
 
 
 class ResearchManager:
@@ -20,7 +20,7 @@ class ResearchManager:
 
     async def run(self, query: str) -> None:
         trace_id = gen_trace_id()
-        with trace("Research trace", trace_id=trace_id):
+        with trace("Research trace", trace_id=trace_id, disabled=True):
             self.printer.update_item(
                 "trace_id",
                 f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}",
