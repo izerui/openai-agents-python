@@ -1,6 +1,5 @@
 from agents import Agent, WebSearchTool
 from agents.model_settings import ModelSettings
-from examples.models import get_agent_chat_model
 
 INSTRUCTIONS = (
     "You are a research assistant. Given a search term, you search the web for that term and "
@@ -11,12 +10,12 @@ INSTRUCTIONS = (
     "itself."
 )
 
-gpt = get_agent_chat_model('gpt')
-
 search_agent = Agent(
     name="Search agent",
+    model="gpt-4.1",
     instructions=INSTRUCTIONS,
     tools=[WebSearchTool()],
-    model=gpt,
+    # Note that gpt-5 model does not support tool_choice="required",
+    # so if you want to migrate to gpt-5, you'll need to use "auto" instead
     model_settings=ModelSettings(tool_choice="required"),
 )

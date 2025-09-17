@@ -16,6 +16,7 @@ gpt = get_agent_chat_model('gpt')
 
 search_agent = Agent(
     name="FinancialSearchAgent",
+    model="gpt-4.1",
     instructions=INSTRUCTIONS,
     tools=[WebSearchTool()],
     model=gpt,

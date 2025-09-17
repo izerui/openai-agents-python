@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import AsyncIterator
+from copy import copy
 from typing import Any, Literal, cast, overload
 
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
@@ -18,13 +19,17 @@ except ImportError as _e:
     ) from _e
 
 from openai import NOT_GIVEN, AsyncStream, NotGiven
-from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageToolCall
+from openai.types.chat import (
+    ChatCompletionChunk,
+    ChatCompletionMessageCustomToolCall,
+    ChatCompletionMessageFunctionToolCall,
+)
 from openai.types.chat.chat_completion_message import (
     Annotation,
     AnnotationURLCitation,
     ChatCompletionMessage,
 )
-from openai.types.chat.chat_completion_message_tool_call import Function
+from openai.types.chat.chat_completion_message_function_tool_call import Function
 from openai.types.responses import Response
 
 from ... import _debug
@@ -43,6 +48,16 @@ from ...tracing import generation_span
 from ...tracing.span_data import GenerationSpanData
 from ...tracing.spans import Span
 from ...usage import Usage
+from ...util._json import _to_dump_compatible
+
+
+class InternalChatCompletionMessage(ChatCompletionMessage):
+    """
+    An internal subclass to carry reasoning_content and thinking_blocks without modifying the original model.
+    """  # noqa: E501
+
+    reasoning_content: str
+    thinking_blocks: list[dict[str, Any]] | None = None
 
 
 class LitellmModel(Model):
@@ -70,7 +85,9 @@ class LitellmModel(Model):
         output_schema: AgentOutputSchemaBase | None,
         handoffs: list[Handoff],
         tracing: ModelTracing,
-        previous_response_id: str | None,
+        previous_response_id: str | None = None,  # unused
+        conversation_id: str | None = None,  # unused
+        prompt: Any | None = None,
     ) -> ModelResponse:
         with generation_span(
             model=str(self.model),
@@ -88,6 +105,7 @@ class LitellmModel(Model):
                 span_generation,
                 tracing,
                 stream=False,
+                prompt=prompt,
             )
 
             assert isinstance(response.choices[0], litellm.types.utils.Choices)
@@ -96,7 +114,11 @@ class LitellmModel(Model):
                 logger.debug("Received model response")
             else:
                 logger.debug(
-                    f"LLM resp:\n{json.dumps(response.choices[0].message.model_dump(), indent=2)}\n"
+                    f"""LLM resp:\n{
+                        json.dumps(
+                            response.choices[0].message.model_dump(), indent=2, ensure_ascii=False
+                        )
+                    }\n"""
                 )
 
             if hasattr(response, "usage"):
@@ -153,8 +175,9 @@ class LitellmModel(Model):
         output_schema: AgentOutputSchemaBase | None,
         handoffs: list[Handoff],
         tracing: ModelTracing,
-        *,
-        previous_response_id: str | None,
+        previous_response_id: str | None = None,  # unused
+        conversation_id: str | None = None,  # unused
+        prompt: Any | None = None,
     ) -> AsyncIterator[TResponseStreamEvent]:
         with generation_span(
             model=str(self.model),
@@ -172,6 +195,7 @@ class LitellmModel(Model):
                 span_generation,
                 tracing,
                 stream=True,
+                prompt=prompt,
             )
 
             final_response: Response | None = None
@@ -202,6 +226,7 @@ class LitellmModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: Literal[True],
+        prompt: Any | None = None,
     ) -> tuple[Response, AsyncStream[ChatCompletionChunk]]: ...
 
     @overload
@@ -216,6 +241,7 @@ class LitellmModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: Literal[False],
+        prompt: Any | None = None,
     ) -> litellm.types.utils.ModelResponse: ...
 
     async def _fetch_response(
@@ -229,8 +255,17 @@ class LitellmModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: bool = False,
+        prompt: Any | None = None,
     ) -> litellm.types.utils.ModelResponse | tuple[Response, AsyncStream[ChatCompletionChunk]]:
-        converted_messages = Converter.items_to_messages(input)
+        # Preserve reasoning messages for tool calls when reasoning is on
+        # This is needed for models like Claude 4 Sonnet/Opus which support interleaved thinking
+        preserve_thinking_blocks = (
+            model_settings.reasoning is not None and model_settings.reasoning.effort is not None
+        )
+
+        converted_messages = Converter.items_to_messages(
+            input, preserve_thinking_blocks=preserve_thinking_blocks
+        )
 
         if system_instructions:
             converted_messages.insert(
@@ -240,6 +275,8 @@ class LitellmModel(Model):
                     "role": "system",
                 },
             )
+        converted_messages = _to_dump_compatible(converted_messages)
+
         if tracing.include_data():
             span.span_data.input = converted_messages
 
@@ -258,13 +295,25 @@ class LitellmModel(Model):
         for handoff in handoffs:
             converted_tools.append(Converter.convert_handoff_tool(handoff))
 
+        converted_tools = _to_dump_compatible(converted_tools)
+
         if _debug.DONT_LOG_MODEL_DATA:
             logger.debug("Calling LLM")
         else:
+            messages_json = json.dumps(
+                converted_messages,
+                indent=2,
+                ensure_ascii=False,
+            )
+            tools_json = json.dumps(
+                converted_tools,
+                indent=2,
+                ensure_ascii=False,
+            )
             logger.debug(
                 f"Calling Litellm model: {self.model}\n"
-                f"{json.dumps(converted_messages, indent=2)}\n"
-                f"Tools:\n{json.dumps(converted_tools, indent=2)}\n"
+                f"{messages_json}\n"
+                f"Tools:\n{tools_json}\n"
                 f"Stream: {stream}\n"
                 f"Tool choice: {tool_choice}\n"
                 f"Response format: {response_format}\n"
@@ -278,9 +327,9 @@ class LitellmModel(Model):
 
         extra_kwargs = {}
         if model_settings.extra_query:
-            extra_kwargs["extra_query"] = model_settings.extra_query
+            extra_kwargs["extra_query"] = copy(model_settings.extra_query)
         if model_settings.metadata:
-            extra_kwargs["metadata"] = model_settings.metadata
+            extra_kwargs["metadata"] = copy(model_settings.metadata)
         if model_settings.extra_body and isinstance(model_settings.extra_body, dict):
             extra_kwargs.update(model_settings.extra_body)
 
@@ -303,6 +352,7 @@ class LitellmModel(Model):
             stream=stream,
             stream_options=stream_options,
             reasoning_effort=reasoning_effort,
+            top_logprobs=model_settings.top_logprobs,
             extra_headers={**HEADERS, **(model_settings.extra_headers or {})},
             api_key=self.api_key,
             base_url=self.base_url,
@@ -343,7 +393,9 @@ class LitellmConverter:
         if message.role != "assistant":
             raise ModelBehaviorError(f"Unsupported role: {message.role}")
 
-        tool_calls = (
+        tool_calls: (
+            list[ChatCompletionMessageFunctionToolCall | ChatCompletionMessageCustomToolCall] | None
+        ) = (
             [LitellmConverter.convert_tool_call_to_openai(tool) for tool in message.tool_calls]
             if message.tool_calls
             else None
@@ -354,13 +406,39 @@ class LitellmConverter:
             provider_specific_fields.get("refusal", None) if provider_specific_fields else None
         )
 
-        return ChatCompletionMessage(
+        reasoning_content = ""
+        if hasattr(message, "reasoning_content") and message.reasoning_content:
+            reasoning_content = message.reasoning_content
+
+        # Extract full thinking blocks including signatures (for Anthropic)
+        thinking_blocks: list[dict[str, Any]] | None = None
+        if hasattr(message, "thinking_blocks") and message.thinking_blocks:
+            # Convert thinking blocks to dict format for compatibility
+            thinking_blocks = []
+            for block in message.thinking_blocks:
+                if isinstance(block, dict):
+                    thinking_blocks.append(cast(dict[str, Any], block))
+                else:
+                    # Convert object to dict by accessing its attributes
+                    block_dict: dict[str, Any] = {}
+                    if hasattr(block, "__dict__"):
+                        block_dict = dict(block.__dict__.items())
+                    elif hasattr(block, "model_dump"):
+                        block_dict = block.model_dump()
+                    else:
+                        # Last resort: convert to string representation
+                        block_dict = {"thinking": str(block)}
+                    thinking_blocks.append(block_dict)
+
+        return InternalChatCompletionMessage(
             content=message.content,
             refusal=refusal,
             role="assistant",
             annotations=cls.convert_annotations_to_openai(message),
             audio=message.get("audio", None),  # litellm deletes audio if not present
             tool_calls=tool_calls,
+            reasoning_content=reasoning_content,
+            thinking_blocks=thinking_blocks,
         )
 
     @classmethod
@@ -389,11 +467,12 @@ class LitellmConverter:
     @classmethod
     def convert_tool_call_to_openai(
         cls, tool_call: litellm.types.utils.ChatCompletionMessageToolCall
-    ) -> ChatCompletionMessageToolCall:
-        return ChatCompletionMessageToolCall(
+    ) -> ChatCompletionMessageFunctionToolCall:
+        return ChatCompletionMessageFunctionToolCall(
             id=tool_call.id,
             type="function",
             function=Function(
-                name=tool_call.function.name or "", arguments=tool_call.function.arguments
+                name=tool_call.function.name or "",
+                arguments=tool_call.function.arguments,
             ),
         )

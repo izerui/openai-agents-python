@@ -61,6 +61,8 @@ class FakeModel(Model):
         tracing: ModelTracing,
         *,
         previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: Any | None,
     ) -> ModelResponse:
         self.last_turn_args = {
             "system_instructions": system_instructions,
@@ -69,6 +71,7 @@ class FakeModel(Model):
             "tools": tools,
             "output_schema": output_schema,
             "previous_response_id": previous_response_id,
+            "conversation_id": conversation_id,
         }
 
         with generation_span(disabled=not self.tracing_enabled) as span:
@@ -102,7 +105,9 @@ class FakeModel(Model):
         handoffs: list[Handoff],
         tracing: ModelTracing,
         *,
-        previous_response_id: str | None,
+        previous_response_id: str | None = None,
+        conversation_id: str | None = None,
+        prompt: Any | None = None,
     ) -> AsyncIterator[TResponseStreamEvent]:
         self.last_turn_args = {
             "system_instructions": system_instructions,
@@ -111,6 +116,7 @@ class FakeModel(Model):
             "tools": tools,
             "output_schema": output_schema,
             "previous_response_id": previous_response_id,
+            "conversation_id": conversation_id,
         }
         with generation_span(disabled=not self.tracing_enabled) as span:
             output = self.get_next_output()

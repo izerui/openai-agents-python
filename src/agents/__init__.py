@@ -5,7 +5,13 @@ from typing import Literal
 from openai import AsyncOpenAI
 
 from . import _config
-from .agent import Agent, ToolsToFinalOutputFunction, ToolsToFinalOutputResult
+from .agent import (
+    Agent,
+    AgentBase,
+    StopAtTools,
+    ToolsToFinalOutputFunction,
+    ToolsToFinalOutputResult,
+)
 from .agent_output import AgentOutputSchema, AgentOutputSchemaBase
 from .computer import AsyncComputer, Button, Computer, Environment
 from .exceptions import (
@@ -40,11 +46,14 @@ from .items import (
     TResponseInputItem,
 )
 from .lifecycle import AgentHooks, RunHooks
+from .memory import OpenAIConversationsSession, Session, SessionABC, SQLiteSession
 from .model_settings import ModelSettings
 from .models.interface import Model, ModelProvider, ModelTracing
+from .models.multi_provider import MultiProvider
 from .models.openai_chatcompletions import OpenAIChatCompletionsModel
 from .models.openai_provider import OpenAIProvider
 from .models.openai_responses import OpenAIResponsesModel
+from .prompts import DynamicPromptFunction, GenerateDynamicPromptData, Prompt
 from .repl import run_demo_loop
 from .result import RunResult, RunResultStreaming
 from .run import RunConfig, Runner
@@ -103,6 +112,7 @@ from .tracing import (
     handoff_span,
     mcp_tools_span,
     set_trace_processors,
+    set_trace_provider,
     set_tracing_disabled,
     set_tracing_export_api_key,
     speech_group_span,
@@ -158,6 +168,8 @@ def enable_verbose_stdout_logging():
 
 __all__ = [
     "Agent",
+    "AgentBase",
+    "StopAtTools",
     "ToolsToFinalOutputFunction",
     "ToolsToFinalOutputResult",
     "Runner",
@@ -167,6 +179,7 @@ __all__ = [
     "ModelTracing",
     "ModelSettings",
     "OpenAIChatCompletionsModel",
+    "MultiProvider",
     "OpenAIProvider",
     "OpenAIResponsesModel",
     "AgentOutputSchema",
@@ -178,6 +191,9 @@ __all__ = [
     "AgentsException",
     "InputGuardrailTripwireTriggered",
     "OutputGuardrailTripwireTriggered",
+    "DynamicPromptFunction",
+    "GenerateDynamicPromptData",
+    "Prompt",
     "MaxTurnsExceeded",
     "ModelBehaviorError",
     "UserError",
@@ -201,10 +217,13 @@ __all__ = [
     "ToolCallItem",
     "ToolCallOutputItem",
     "ReasoningItem",
-    "ModelResponse",
     "ItemHelpers",
     "RunHooks",
     "AgentHooks",
+    "Session",
+    "SessionABC",
+    "SQLiteSession",
+    "OpenAIConversationsSession",
     "RunContextWrapper",
     "TContext",
     "RunErrorDetails",
@@ -242,6 +261,7 @@ __all__ = [
     "guardrail_span",
     "handoff_span",
     "set_trace_processors",
+    "set_trace_provider",
     "set_tracing_disabled",
     "speech_group_span",
     "transcription_span",

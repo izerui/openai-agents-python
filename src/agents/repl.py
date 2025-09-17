@@ -5,13 +5,16 @@ from typing import Any
 from openai.types.responses.response_text_delta_event import ResponseTextDeltaEvent
 
 from .agent import Agent
-from .items import ItemHelpers, TResponseInputItem
+from .items import TResponseInputItem
 from .result import RunResultBase
 from .run import Runner
+from .run_context import TContext
 from .stream_events import AgentUpdatedStreamEvent, RawResponsesStreamEvent, RunItemStreamEvent
 
 
-async def run_demo_loop(agent: Agent[Any], *, stream: bool = True) -> None:
+async def run_demo_loop(
+    agent: Agent[Any], *, stream: bool = True, context: TContext | None = None
+) -> None:
     """Run a simple REPL loop with the given agent.
 
     This utility allows quick manual testing and debugging of an agent from the
@@ -21,6 +24,7 @@ async def run_demo_loop(agent: Agent[Any], *, stream: bool = True) -> None:
     Args:
         agent: The starting agent to run.
         stream: Whether to stream the agent output.
+        context: Additional context information to pass to the runner.
     """
 
     current_agent = agent
@@ -40,7 +44,7 @@ async def run_demo_loop(agent: Agent[Any], *, stream: bool = True) -> None:
 
         result: RunResultBase
         if stream:
-            result = Runner.run_streamed(current_agent, input=input_items)
+            result = Runner.run_streamed(current_agent, input=input_items, context=context)
             async for event in result.stream_events():
                 if isinstance(event, RawResponsesStreamEvent):
                     if isinstance(event.data, ResponseTextDeltaEvent):
@@ -50,14 +54,11 @@ async def run_demo_loop(agent: Agent[Any], *, stream: bool = True) -> None:
                         print("\n[tool called]", flush=True)
                     elif event.item.type == "tool_call_output_item":
                         print(f"\n[tool output: {event.item.output}]", flush=True)
-                    elif event.item.type == "message_output_item":
-                        message = ItemHelpers.text_message_output(event.item)
-                        print(message, end="", flush=True)
                 elif isinstance(event, AgentUpdatedStreamEvent):
                     print(f"\n[Agent updated: {event.new_agent.name}]", flush=True)
             print()
         else:
-            result = await Runner.run(current_agent, input_items)
+            result = await Runner.run(current_agent, input_items, context=context)
             if result.final_output is not None:
                 print(result.final_output)
 

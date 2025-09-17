@@ -12,13 +12,14 @@ from openai.types.chat import (
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
     ChatCompletionMessage,
+    ChatCompletionMessageFunctionToolCallParam,
     ChatCompletionMessageParam,
-    ChatCompletionMessageToolCallParam,
     ChatCompletionSystemMessageParam,
     ChatCompletionToolChoiceOptionParam,
     ChatCompletionToolMessageParam,
     ChatCompletionUserMessageParam,
 )
+from openai.types.chat.chat_completion_content_part_param import File, FileFile
 from openai.types.chat.chat_completion_tool_param import ChatCompletionToolParam
 from openai.types.chat.completion_create_params import ResponseFormat
 from openai.types.responses import (
@@ -27,19 +28,24 @@ from openai.types.responses import (
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
     ResponseInputContentParam,
+    ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputTextParam,
     ResponseOutputMessage,
     ResponseOutputMessageParam,
     ResponseOutputRefusal,
     ResponseOutputText,
+    ResponseReasoningItem,
+    ResponseReasoningItemParam,
 )
 from openai.types.responses.response_input_param import FunctionCallOutput, ItemReference, Message
+from openai.types.responses.response_reasoning_item import Content, Summary
 
 from ..agent_output import AgentOutputSchemaBase
 from ..exceptions import AgentsException, UserError
 from ..handoffs import Handoff
 from ..items import TResponseInputItem, TResponseOutputItem
+from ..model_settings import MCPToolChoice
 from ..tool import FunctionTool, Tool
 from .fake_id import FAKE_RESPONSES_ID
 
@@ -47,10 +53,12 @@ from .fake_id import FAKE_RESPONSES_ID
 class Converter:
     @classmethod
     def convert_tool_choice(
-        cls, tool_choice: Literal["auto", "required", "none"] | str | None
+        cls, tool_choice: Literal["auto", "required", "none"] | str | MCPToolChoice | None
     ) -> ChatCompletionToolChoiceOptionParam | NotGiven:
         if tool_choice is None:
             return NOT_GIVEN
+        elif isinstance(tool_choice, MCPToolChoice):
+            raise UserError("MCPToolChoice is not supported for Chat Completions models")
         elif tool_choice == "auto":
             return "auto"
         elif tool_choice == "required":
@@ -85,6 +93,41 @@ class Converter:
     def message_to_output_items(cls, message: ChatCompletionMessage) -> list[TResponseOutputItem]:
         items: list[TResponseOutputItem] = []
 
+        # Check if message is agents.extentions.models.litellm_model.InternalChatCompletionMessage
+        # We can't actually import it here because litellm is an optional dependency
+        # So we use hasattr to check for reasoning_content and thinking_blocks
+        if hasattr(message, "reasoning_content") and message.reasoning_content:
+            reasoning_item = ResponseReasoningItem(
+                id=FAKE_RESPONSES_ID,
+                summary=[Summary(text=message.reasoning_content, type="summary_text")],
+                type="reasoning",
+            )
+
+            # Store thinking blocks for Anthropic compatibility
+            if hasattr(message, "thinking_blocks") and message.thinking_blocks:
+                # Store thinking text in content and signature in encrypted_content
+                reasoning_item.content = []
+                signature = None
+                for block in message.thinking_blocks:
+                    if isinstance(block, dict):
+                        thinking_text = block.get("thinking", "")
+                        if thinking_text:
+                            reasoning_item.content.append(
+                                Content(text=thinking_text, type="reasoning_text")
+                            )
+                        # Store the signature if present
+                        if block.get("signature"):
+                            signature = block.get("signature")
+
+                # Store only the last signature in encrypted_content
+                # If there are multiple thinking blocks, this should be a problem.
+                # In practice, there should only be one signature for the entire reasoning step.
+                # Tested with: claude-sonnet-4-20250514
+                if signature:
+                    reasoning_item.encrypted_content = signature
+
+            items.append(reasoning_item)
+
         message_item = ResponseOutputMessage(
             id=FAKE_RESPONSES_ID,
             content=[],
@@ -108,15 +151,18 @@ class Converter:
 
         if message.tool_calls:
             for tool_call in message.tool_calls:
-                items.append(
-                    ResponseFunctionToolCall(
-                        id=FAKE_RESPONSES_ID,
-                        call_id=tool_call.id,
-                        arguments=tool_call.function.arguments,
-                        name=tool_call.function.name,
-                        type="function_call",
+                if tool_call.type == "function":
+                    items.append(
+                        ResponseFunctionToolCall(
+                            id=FAKE_RESPONSES_ID,
+                            call_id=tool_call.id,
+                            arguments=tool_call.function.arguments,
+                            name=tool_call.function.name,
+                            type="function_call",
+                        )
                     )
-                )
+                elif tool_call.type == "custom":
+                    pass
 
         return items
 
@@ -194,6 +240,12 @@ class Converter:
         return None
 
     @classmethod
+    def maybe_reasoning_message(cls, item: Any) -> ResponseReasoningItemParam | None:
+        if isinstance(item, dict) and item.get("type") == "reasoning":
+            return cast(ResponseReasoningItemParam, item)
+        return None
+
+    @classmethod
     def extract_text_content(
         cls, content: str | Iterable[ResponseInputContentParam]
     ) -> str | list[ChatCompletionContentPartTextParam]:
@@ -239,7 +291,22 @@ class Converter:
                     )
                 )
             elif isinstance(c, dict) and c.get("type") == "input_file":
-                raise UserError(f"File uploads are not supported for chat completions {c}")
+                casted_file_param = cast(ResponseInputFileParam, c)
+                if "file_data" not in casted_file_param or not casted_file_param["file_data"]:
+                    raise UserError(
+                        f"Only file_data is supported for input_file {casted_file_param}"
+                    )
+                if "filename" not in casted_file_param or not casted_file_param["filename"]:
+                    raise UserError(f"filename must be provided for input_file {casted_file_param}")
+                out.append(
+                    File(
+                        type="file",
+                        file=FileFile(
+                            file_data=casted_file_param["file_data"],
+                            filename=casted_file_param["filename"],
+                        ),
+                    )
+                )
             else:
                 raise UserError(f"Unknown content: {c}")
         return out
@@ -248,9 +315,17 @@ class Converter:
     def items_to_messages(
         cls,
         items: str | Iterable[TResponseInputItem],
+        preserve_thinking_blocks: bool = False,
     ) -> list[ChatCompletionMessageParam]:
         """
         Convert a sequence of 'Item' objects into a list of ChatCompletionMessageParam.
+
+        Args:
+            items: A string or iterable of response input items to convert
+            preserve_thinking_blocks: Whether to preserve thinking blocks in tool calls
+                for reasoning models like Claude 4 Sonnet/Opus which support interleaved
+                thinking. When True, thinking blocks are reconstructed and included in
+                assistant messages with tool calls.
 
         Rules:
         - EasyInputMessage or InputMessage (role=user) => ChatCompletionUserMessageParam
@@ -272,6 +347,7 @@ class Converter:
 
         result: list[ChatCompletionMessageParam] = []
         current_assistant_msg: ChatCompletionAssistantMessageParam | None = None
+        pending_thinking_blocks: list[dict[str, str]] | None = None
 
         def flush_assistant_message() -> None:
             nonlocal current_assistant_msg
@@ -283,10 +359,11 @@ class Converter:
                 current_assistant_msg = None
 
         def ensure_assistant_message() -> ChatCompletionAssistantMessageParam:
-            nonlocal current_assistant_msg
+            nonlocal current_assistant_msg, pending_thinking_blocks
             if current_assistant_msg is None:
                 current_assistant_msg = ChatCompletionAssistantMessageParam(role="assistant")
                 current_assistant_msg["tool_calls"] = []
+
             return current_assistant_msg
 
         for item in items:
@@ -384,7 +461,7 @@ class Converter:
             elif file_search := cls.maybe_file_search_call(item):
                 asst = ensure_assistant_message()
                 tool_calls = list(asst.get("tool_calls", []))
-                new_tool_call = ChatCompletionMessageToolCallParam(
+                new_tool_call = ChatCompletionMessageFunctionToolCallParam(
                     id=file_search["id"],
                     type="function",
                     function={
@@ -402,9 +479,16 @@ class Converter:
 
             elif func_call := cls.maybe_function_tool_call(item):
                 asst = ensure_assistant_message()
+
+                # If we have pending thinking blocks, use them as the content
+                # This is required for Anthropic API tool calls with interleaved thinking
+                if pending_thinking_blocks:
+                    asst["content"] = pending_thinking_blocks  # type: ignore
+                    pending_thinking_blocks = None  # Clear after using
+
                 tool_calls = list(asst.get("tool_calls", []))
                 arguments = func_call["arguments"] if func_call["arguments"] else "{}"
-                new_tool_call = ChatCompletionMessageToolCallParam(
+                new_tool_call = ChatCompletionMessageFunctionToolCallParam(
                     id=func_call["call_id"],
                     type="function",
                     function={
@@ -430,7 +514,30 @@ class Converter:
                     f"Encountered an item_reference, which is not supported: {item_ref}"
                 )
 
-            # 7) If we haven't recognized it => fail or ignore
+            # 7) reasoning message => extract thinking blocks if present
+            elif reasoning_item := cls.maybe_reasoning_message(item):
+                # Reconstruct thinking blocks from content (text) and encrypted_content (signature)
+                content_items = reasoning_item.get("content", [])
+                signature = reasoning_item.get("encrypted_content")
+
+                if content_items and preserve_thinking_blocks:
+                    # Reconstruct thinking blocks from content and signature
+                    pending_thinking_blocks = []
+                    for content_item in content_items:
+                        if (
+                            isinstance(content_item, dict)
+                            and content_item.get("type") == "reasoning_text"
+                        ):
+                            thinking_block = {
+                                "type": "thinking",
+                                "thinking": content_item.get("text", ""),
+                            }
+                            # Add signature if available
+                            if signature:
+                                thinking_block["signature"] = signature
+                            pending_thinking_blocks.append(thinking_block)
+
+            # 8) If we haven't recognized it => fail or ignore
             else:
                 raise UserError(f"Unhandled item type or structure: {item}")
 
@@ -455,7 +562,7 @@ class Converter:
         )
 
     @classmethod
-    def convert_handoff_tool(cls, handoff: Handoff[Any]) -> ChatCompletionToolParam:
+    def convert_handoff_tool(cls, handoff: Handoff[Any, Any]) -> ChatCompletionToolParam:
         return {
             "type": "function",
             "function": {

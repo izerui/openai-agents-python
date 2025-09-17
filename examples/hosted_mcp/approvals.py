@@ -48,7 +48,7 @@ async def main(verbose: bool, stream: bool):
                 print(f"收到类型为 {event.item.__class__.__name__} 的事件")
         print(f"完成流式传输；最终结果: {result.final_output}")
     else:
-        res = await Runner.run(agent, "这个代码库是用什么语言写的？")
+        res = await Runner.run(agent, "这个代码库是用什么语言写的？Your MCP server should know what the repo is.")
         print(res.final_output)
 
     if verbose:

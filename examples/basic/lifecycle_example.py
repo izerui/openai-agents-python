@@ -1,12 +1,11 @@
 import asyncio
 import random
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
-from agents import Agent, RunContextWrapper, RunHooks, Runner, Tool, Usage, function_tool, RunConfig, ModelSettings
-
-from examples.models import get_agent_chat_model
+from agents import Agent, RunContextWrapper, RunHooks, Runner, Tool, Usage, function_tool
+from agents.items import ModelResponse, TResponseInputItem
 
 
 class ExampleHooks(RunHooks):
@@ -21,6 +20,22 @@ class ExampleHooks(RunHooks):
         print(
             f"### {self.event_counter}: Agent {agent.name} started. Usage: {self._usage_to_str(context.usage)}"
         )
+
+    async def on_llm_start(
+        self,
+        context: RunContextWrapper,
+        agent: Agent,
+        system_prompt: Optional[str],
+        input_items: list[TResponseInputItem],
+    ) -> None:
+        self.event_counter += 1
+        print(f"### {self.event_counter}: LLM started. Usage: {self._usage_to_str(context.usage)}")
+
+    async def on_llm_end(
+        self, context: RunContextWrapper, agent: Agent, response: ModelResponse
+    ) -> None:
+        self.event_counter += 1
+        print(f"### {self.event_counter}: LLM ended. Usage: {self._usage_to_str(context.usage)}")
 
     async def on_agent_end(self, context: RunContextWrapper, agent: Agent, output: Any) -> None:
         self.event_counter += 1
@@ -58,7 +73,7 @@ hooks = ExampleHooks()
 
 @function_tool
 def random_number(max: int) -> int:
-    """Generate a random number up to the provided max."""
+    """Generate a random number from 0 to max (inclusive)."""
     return random.randint(0, max)
 
 
@@ -72,40 +87,35 @@ class FinalResult(BaseModel):
     number: int
 
 
-deepseekv3 = get_agent_chat_model('deepseek-v3')
-
 multiply_agent = Agent(
-    name="乘法智能体",
-    instructions=f"将数字乘以2，然后返回最终结果. 用json格式返回.json_schema: {FinalResult.model_json_schema()}",
+    name="Multiply Agent",
+    instructions="Multiply the number by 2 and then return the final result.",
     tools=[multiply_by_two],
     output_type=FinalResult,
-    model=deepseekv3,
-    model_settings=ModelSettings(temperature=0.1, extra_body={
-        "response_format": {"type": "json_object"},
-    }),
 )
 
 start_agent = Agent(
-    name="随机数智能体",
-    instructions=f"生成一个随机数。如果是，请停下来。如果很奇怪，请交给乘数代理. 用json格式返回. json_schema: {FinalResult.model_json_schema()}",
+    name="Start Agent",
+    instructions="Generate a random number. If it's even, stop. If it's odd, hand off to the multiplier agent.",
     tools=[random_number],
     output_type=FinalResult,
     handoffs=[multiply_agent],
-    model=deepseekv3,
-    model_settings=ModelSettings(temperature=0.1, extra_body={
-        "response_format": {"type": "json_object"},
-    }),
 )
 
 
 async def main() -> None:
     user_input = input("Enter a max number: ")
-    result = await Runner.run(
-        start_agent,
-        hooks=hooks,
-        input=f"在 0 和 {user_input} 之间生成一个随机数",
-    )
-    print(result.final_output)
+    try:
+        max_number = int(user_input)
+        await Runner.run(
+            start_agent,
+            hooks=hooks,
+            input=f"Generate a random number between 0 and {max_number}.",
+        )
+    except ValueError:
+        print("Please enter a valid integer.")
+        return
+
     print("Done!")
 
 
@@ -116,15 +126,21 @@ $ python examples/basic/lifecycle_example.py
 
 Enter a max number: 250
 ### 1: Agent Start Agent started. Usage: 0 requests, 0 input tokens, 0 output tokens, 0 total tokens
-### 2: Tool random_number started. Usage: 1 requests, 148 input tokens, 15 output tokens, 163 total tokens
-### 3: Tool random_number ended with result 101. Usage: 1 requests, 148 input tokens, 15 output tokens, 163 total tokens
-### 4: Agent Start Agent started. Usage: 1 requests, 148 input tokens, 15 output tokens, 163 total tokens
-### 5: Handoff from Start Agent to Multiply Agent. Usage: 2 requests, 323 input tokens, 30 output tokens, 353 total tokens
-### 6: Agent Multiply Agent started. Usage: 2 requests, 323 input tokens, 30 output tokens, 353 total tokens
-### 7: Tool multiply_by_two started. Usage: 3 requests, 504 input tokens, 46 output tokens, 550 total tokens
-### 8: Tool multiply_by_two ended with result 202. Usage: 3 requests, 504 input tokens, 46 output tokens, 550 total tokens
-### 9: Agent Multiply Agent started. Usage: 3 requests, 504 input tokens, 46 output tokens, 550 total tokens
-### 10: Agent Multiply Agent ended with output number=202. Usage: 4 requests, 714 input tokens, 63 output tokens, 777 total tokens
+### 2: LLM started. Usage: 0 requests, 0 input tokens, 0 output tokens, 0 total tokens
+### 3: LLM ended. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
+### 4: Tool random_number started. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
+### 5: Tool random_number ended with result 69. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
+### 6: LLM started. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
+### 7: LLM ended. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
+### 8: Handoff from Start Agent to Multiply Agent. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
+### 9: Agent Multiply Agent started. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
+### 10: LLM started. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
+### 11: LLM ended. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
+### 12: Tool multiply_by_two started. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
+### 13: Tool multiply_by_two ended with result 138. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
+### 14: LLM started. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
+### 15: LLM ended. Usage: 4 requests, 660 input tokens, 56 output tokens, 716 total tokens
+### 16: Agent Multiply Agent ended with output number=138. Usage: 4 requests, 660 input tokens, 56 output tokens, 716 total tokens
 Done!
 
 """

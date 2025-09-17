@@ -69,8 +69,10 @@ async def test_get_response_creates_trace(monkeypatch):
             tools,
             output_schema,
             handoffs,
-            prev_response_id,
+            previous_response_id,
+            conversation_id,
             stream,
+            prompt,
         ):
             return DummyResponse()
 
@@ -113,8 +115,10 @@ async def test_non_data_tracing_doesnt_set_response_id(monkeypatch):
             tools,
             output_schema,
             handoffs,
-            prev_response_id,
+            previous_response_id,
+            conversation_id,
             stream,
+            prompt,
         ):
             return DummyResponse()
 
@@ -155,8 +159,10 @@ async def test_disable_tracing_does_not_create_span(monkeypatch):
             tools,
             output_schema,
             handoffs,
-            prev_response_id,
+            previous_response_id,
+            conversation_id,
             stream,
+            prompt,
         ):
             return DummyResponse()
 
@@ -194,8 +200,10 @@ async def test_stream_response_creates_trace(monkeypatch):
             tools,
             output_schema,
             handoffs,
-            prev_response_id,
+            previous_response_id,
+            conversation_id,
             stream,
+            prompt,
         ):
             class DummyStream:
                 async def __aiter__(self):
@@ -247,8 +255,10 @@ async def test_stream_non_data_tracing_doesnt_set_response_id(monkeypatch):
             tools,
             output_schema,
             handoffs,
-            prev_response_id,
+            previous_response_id,
+            conversation_id,
             stream,
+            prompt,
         ):
             class DummyStream:
                 async def __aiter__(self):
@@ -299,8 +309,10 @@ async def test_stream_disabled_tracing_doesnt_create_span(monkeypatch):
             tools,
             output_schema,
             handoffs,
-            prev_response_id,
+            previous_response_id,
+            conversation_id,
             stream,
+            prompt,
         ):
             class DummyStream:
                 async def __aiter__(self):

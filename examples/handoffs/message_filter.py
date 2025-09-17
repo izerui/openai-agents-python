@@ -5,25 +5,36 @@ import random
 
 from agents import Agent, HandoffInputData, Runner, function_tool, handoff, trace
 from agents.extensions import handoff_filters
+from agents.models import is_gpt_5_default
 
 
 @function_tool
 def random_number_tool(max: int) -> int:
-    """返回一个介于 0 和给定最大值之间的随机整数。"""
+    """Return a random integer between 0 and the given maximum."""
     return random.randint(0, max)
 
 
 def spanish_handoff_message_filter(handoff_message_data: HandoffInputData) -> HandoffInputData:
-    # 首先，我们将从消息历史记录中删除所有与工具相关的消息
+    if is_gpt_5_default():
+        print("gpt-5 is enabled, so we're not filtering the input history")
+        # when using gpt-5, removing some of the items could break things, so we do this filtering only for other models
+        return HandoffInputData(
+            input_history=handoff_message_data.input_history,
+            pre_handoff_items=tuple(handoff_message_data.pre_handoff_items),
+            new_items=tuple(handoff_message_data.new_items),
+        )
+
+    # First, we'll remove any tool-related messages from the message history
     handoff_message_data = handoff_filters.remove_all_tools(handoff_message_data)
 
-    # 其次，我们还将删除历史记录中的前两项，仅用于演示
+    # Second, we'll also remove the first two items from the history, just for demonstration
     history = (
         tuple(handoff_message_data.input_history[2:])
         if isinstance(handoff_message_data.input_history, tuple)
         else handoff_message_data.input_history
     )
 
+    # or, you can use the HandoffInputData.clone(kwargs) method
     return HandoffInputData(
         input_history=history,
         pre_handoff_items=tuple(handoff_message_data.pre_handoff_items),
@@ -32,58 +43,58 @@ def spanish_handoff_message_filter(handoff_message_data: HandoffInputData) -> Ha
 
 
 first_agent = Agent(
-    name="助手",
-    instructions="请保持回答非常简洁。",
+    name="Assistant",
+    instructions="Be extremely concise.",
     tools=[random_number_tool],
 )
 
 spanish_agent = Agent(
-    name="西班牙语助手",
-    instructions="你只说西班牙语，并且回答非常简洁。",
-    handoff_description="一个说西班牙语的助手。",
+    name="Spanish Assistant",
+    instructions="You only speak Spanish and are extremely concise.",
+    handoff_description="A Spanish-speaking assistant.",
 )
 
 second_agent = Agent(
-    name="助手",
+    name="Assistant",
     instructions=(
-        "做一个有帮助的助手。如果用户说西班牙语，请转交给西班牙语助手。"
+        "Be a helpful assistant. If the user speaks Spanish, handoff to the Spanish assistant."
     ),
     handoffs=[handoff(spanish_agent, input_filter=spanish_handoff_message_filter)],
 )
 
 
 async def main():
-    # 将整个运行过程作为单个工作流进行追踪
-    with trace(workflow_name="消息过滤"):
-        # 1. 向第一个代理发送普通消息
-        result = await Runner.run(first_agent, input="你好，我叫 Sora。")
+    # Trace the entire run as a single workflow
+    with trace(workflow_name="Message filtering"):
+        # 1. Send a regular message to the first agent
+        result = await Runner.run(first_agent, input="Hi, my name is Sora.")
 
-        print("步骤 1 完成")
+        print("Step 1 done")
 
-        # 2. 让它生成一个随机数
+        # 2. Ask it to generate a number
         result = await Runner.run(
             first_agent,
             input=result.to_input_list()
-            + [{"content": "你能生成一个介于 0 和 100 之间的随机数吗？", "role": "user"}],
+            + [{"content": "Can you generate a random number between 0 and 100?", "role": "user"}],
         )
 
-        print("步骤 2 完成")
+        print("Step 2 done")
 
-        # 3. 调用第二个代理
+        # 3. Call the second agent
         result = await Runner.run(
             second_agent,
             input=result.to_input_list()
             + [
                 {
-                    "content": "我住在纽约市。这个城市的人口是多少？",
+                    "content": "I live in New York City. Whats the population of the city?",
                     "role": "user",
                 }
             ],
         )
 
-        print("步骤 3 完成")
+        print("Step 3 done")
 
-        # 4. 触发语言切换移交
+        # 4. Cause a handoff to occur
         result = await Runner.run(
             second_agent,
             input=result.to_input_list()
@@ -95,15 +106,79 @@ async def main():
             ],
         )
 
-        print("步骤 4 完成")
+        print("Step 4 done")
 
-    print("\n===最终消息列表===\n")
+    print("\n===Final messages===\n")
 
-    # 5. 这将触发 spanish_handoff_message_filter 的调用
-    # 输出将不包含前两条消息，且没有工具调用
-    # 让我们打印消息看看结果如何
+    # 5. That should have caused spanish_handoff_message_filter to be called, which means the
+    # output should be missing the first two messages, and have no tool calls.
+    # Let's print the messages to see what happened
     for message in result.to_input_list():
-        print(json.dumps(message, indent=2, ensure_ascii=False))
+        print(json.dumps(message, indent=2))
+        # tool_calls = message.tool_calls if isinstance(message, AssistantMessage) else None
+
+        # print(f"{message.role}: {message.content}\n  - Tool calls: {tool_calls or 'None'}")
+        """
+        $python examples/handoffs/message_filter.py
+        Step 1 done
+        Step 2 done
+        Step 3 done
+        Step 4 done
+
+        ===Final messages===
+
+        {
+            "content": "Can you generate a random number between 0 and 100?",
+            "role": "user"
+        }
+        {
+        "id": "...",
+        "content": [
+            {
+            "annotations": [],
+            "text": "Sure! Here's a random number between 0 and 100: **42**.",
+            "type": "output_text"
+            }
+        ],
+        "role": "assistant",
+        "status": "completed",
+        "type": "message"
+        }
+        {
+        "content": "I live in New York City. Whats the population of the city?",
+        "role": "user"
+        }
+        {
+        "id": "...",
+        "content": [
+            {
+            "annotations": [],
+            "text": "As of the most recent estimates, the population of New York City is approximately 8.6 million people. However, this number is constantly changing due to various factors such as migration and birth rates. For the latest and most accurate information, it's always a good idea to check the official data from sources like the U.S. Census Bureau.",
+            "type": "output_text"
+            }
+        ],
+        "role": "assistant",
+        "status": "completed",
+        "type": "message"
+        }
+        {
+        "content": "Por favor habla en espa\u00f1ol. \u00bfCu\u00e1l es mi nombre y d\u00f3nde vivo?",
+        "role": "user"
+        }
+        {
+        "id": "...",
+        "content": [
+            {
+            "annotations": [],
+            "text": "No tengo acceso a esa informaci\u00f3n personal, solo s\u00e9 lo que me has contado: vives en Nueva York.",
+            "type": "output_text"
+            }
+        ],
+        "role": "assistant",
+        "status": "completed",
+        "type": "message"
+        }
+        """
 
 
 if __name__ == "__main__":

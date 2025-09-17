@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from openai import NOT_GIVEN, AsyncOpenAI, AsyncStream
 from openai.types import ChatModel
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice
 from openai.types.responses import Response
+from openai.types.responses.response_prompt_param import ResponsePromptParam
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
 
 from .. import _debug
@@ -21,11 +23,13 @@ from ..tracing import generation_span
 from ..tracing.span_data import GenerationSpanData
 from ..tracing.spans import Span
 from ..usage import Usage
+from ..util._json import _to_dump_compatible
 from .chatcmpl_converter import Converter
 from .chatcmpl_helpers import HEADERS, ChatCmplHelpers
 from .chatcmpl_stream_handler import ChatCmplStreamHandler
 from .fake_id import FAKE_RESPONSES_ID
 from .interface import Model, ModelTracing
+from .openai_responses import Converter as OpenAIResponsesConverter
 
 if TYPE_CHECKING:
     from ..model_settings import ModelSettings
@@ -52,7 +56,9 @@ class OpenAIChatCompletionsModel(Model):
         output_schema: AgentOutputSchemaBase | None,
         handoffs: list[Handoff],
         tracing: ModelTracing,
-        previous_response_id: str | None,
+        previous_response_id: str | None = None,  # unused
+        conversation_id: str | None = None,  # unused
+        prompt: ResponsePromptParam | None = None,
     ) -> ModelResponse:
         with generation_span(
             model=str(self.model),
@@ -69,10 +75,14 @@ class OpenAIChatCompletionsModel(Model):
                 span_generation,
                 tracing,
                 stream=False,
+                prompt=prompt,
             )
 
-            first_choice = response.choices[0]
-            message = first_choice.message
+            message: ChatCompletionMessage | None = None
+            first_choice: Choice | None = None
+            if response.choices and len(response.choices) > 0:
+                first_choice = response.choices[0]
+                message = first_choice.message
 
             if _debug.DONT_LOG_MODEL_DATA:
                 logger.debug("Received model response")
@@ -80,13 +90,11 @@ class OpenAIChatCompletionsModel(Model):
                 if message is not None:
                     logger.debug(
                         "LLM resp:\n%s\n",
-                        json.dumps(message.model_dump(), indent=2),
+                        json.dumps(message.model_dump(), indent=2, ensure_ascii=False),
                     )
                 else:
-                    logger.debug(
-                        "LLM resp had no message. finish_reason: %s",
-                        first_choice.finish_reason,
-                    )
+                    finish_reason = first_choice.finish_reason if first_choice else "-"
+                    logger.debug(f"LLM resp had no message. finish_reason: {finish_reason}")
 
             usage = (
                 Usage(
@@ -136,8 +144,9 @@ class OpenAIChatCompletionsModel(Model):
         output_schema: AgentOutputSchemaBase | None,
         handoffs: list[Handoff],
         tracing: ModelTracing,
-        *,
-        previous_response_id: str | None,
+        previous_response_id: str | None = None,  # unused
+        conversation_id: str | None = None,  # unused
+        prompt: ResponsePromptParam | None = None,
     ) -> AsyncIterator[TResponseStreamEvent]:
         """
         Yields a partial message as it is generated, as well as the usage information.
@@ -157,6 +166,7 @@ class OpenAIChatCompletionsModel(Model):
                 span_generation,
                 tracing,
                 stream=True,
+                prompt=prompt,
             )
 
             final_response: Response | None = None
@@ -187,6 +197,7 @@ class OpenAIChatCompletionsModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: Literal[True],
+        prompt: ResponsePromptParam | None = None,
     ) -> tuple[Response, AsyncStream[ChatCompletionChunk]]: ...
 
     @overload
@@ -201,6 +212,7 @@ class OpenAIChatCompletionsModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: Literal[False],
+        prompt: ResponsePromptParam | None = None,
     ) -> ChatCompletion: ...
 
     async def _fetch_response(
@@ -214,6 +226,7 @@ class OpenAIChatCompletionsModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: bool = False,
+        prompt: ResponsePromptParam | None = None,
     ) -> ChatCompletion | tuple[Response, AsyncStream[ChatCompletionChunk]]:
         converted_messages = Converter.items_to_messages(input)
 
@@ -225,6 +238,8 @@ class OpenAIChatCompletionsModel(Model):
                     "role": "system",
                 },
             )
+        converted_messages = _to_dump_compatible(converted_messages)
+
         if tracing.include_data():
             span.span_data.input = converted_messages
 
@@ -243,12 +258,24 @@ class OpenAIChatCompletionsModel(Model):
         for handoff in handoffs:
             converted_tools.append(Converter.convert_handoff_tool(handoff))
 
+        converted_tools = _to_dump_compatible(converted_tools)
+
         if _debug.DONT_LOG_MODEL_DATA:
             logger.debug("Calling LLM")
         else:
+            messages_json = json.dumps(
+                converted_messages,
+                indent=2,
+                ensure_ascii=False,
+            )
+            tools_json = json.dumps(
+                converted_tools,
+                indent=2,
+                ensure_ascii=False,
+            )
             logger.debug(
-                f"{json.dumps(converted_messages, indent=2)}\n"
-                f"Tools:\n{json.dumps(converted_tools, indent=2)}\n"
+                f"{messages_json}\n"
+                f"Tools:\n{tools_json}\n"
                 f"Stream: {stream}\n"
                 f"Tool choice: {tool_choice}\n"
                 f"Response format: {response_format}\n"
@@ -277,6 +304,8 @@ class OpenAIChatCompletionsModel(Model):
             stream_options=self._non_null_or_not_given(stream_options),
             store=self._non_null_or_not_given(store),
             reasoning_effort=self._non_null_or_not_given(reasoning_effort),
+            verbosity=self._non_null_or_not_given(model_settings.verbosity),
+            top_logprobs=self._non_null_or_not_given(model_settings.top_logprobs),
             extra_headers={**HEADERS, **(model_settings.extra_headers or {})},
             extra_query=model_settings.extra_query,
             extra_body=model_settings.extra_body,
@@ -287,15 +316,27 @@ class OpenAIChatCompletionsModel(Model):
         if isinstance(ret, ChatCompletion):
             return ret
 
+        responses_tool_choice = OpenAIResponsesConverter.convert_tool_choice(
+            model_settings.tool_choice
+        )
+        if responses_tool_choice is None or responses_tool_choice == NOT_GIVEN:
+            # For Responses API data compatibility with Chat Completions patterns,
+            # we need to set "none" if tool_choice is absent.
+            # Without this fix, you'll get the following error:
+            # pydantic_core._pydantic_core.ValidationError: 4 validation errors for Response
+            # tool_choice.literal['none','auto','required']
+            #   Input should be 'none', 'auto' or 'required'
+            #   [type=literal_error, input_value=NOT_GIVEN, input_type=NotGiven]
+            # see also: https://github.com/openai/openai-agents-python/issues/980
+            responses_tool_choice = "auto"
+
         response = Response(
             id=FAKE_RESPONSES_ID,
             created_at=time.time(),
             model=self.model,
             object="response",
             output=[],
-            tool_choice=cast(Literal["auto", "required", "none"], tool_choice)
-            if tool_choice != NOT_GIVEN
-            else "auto",
+            tool_choice=responses_tool_choice,  # type: ignore[arg-type]
             top_p=model_settings.top_p,
             temperature=model_settings.temperature,
             tools=[],

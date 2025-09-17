@@ -1,8 +1,8 @@
 # Agent used to synthesize a final report from the individual summaries.
+from openai.types.shared.reasoning import Reasoning
 from pydantic import BaseModel
 
-from agents import Agent
-from examples.models import get_agent_chat_model
+from agents import Agent, ModelSettings
 
 PROMPT = (
     "You are a senior researcher tasked with writing a cohesive report for a research query. "
@@ -14,7 +14,6 @@ PROMPT = (
     "for 5-10 pages of content, at least 1000 words."
 )
 
-gpt = get_agent_chat_model('gpt')
 
 class ReportData(BaseModel):
     short_summary: str
@@ -30,6 +29,7 @@ class ReportData(BaseModel):
 writer_agent = Agent(
     name="WriterAgent",
     instructions=PROMPT,
-    model=gpt,
+    model="gpt-5-mini",
+    model_settings=ModelSettings(reasoning=Reasoning(effort="medium")),
     output_type=ReportData,
 )
