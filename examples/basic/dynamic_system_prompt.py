@@ -1,5 +1,6 @@
 import asyncio
 import random
+from dataclasses import dataclass
 from typing import Literal
 
 from agents import Agent, RunContextWrapper, Runner
@@ -7,9 +8,9 @@ from agents import Agent, RunContextWrapper, Runner
 from examples.models import get_agent_chat_model
 
 
+@dataclass
 class CustomContext:
-    def __init__(self, style: Literal["haiku", "pirate", "robot"]):
-        self.style = style
+    style: Literal["haiku", "pirate", "robot"]
 
 
 def custom_instructions(
@@ -31,11 +32,9 @@ agent = Agent(
     model=deepseekv3,
 )
 
-
 async def main():
-    choice: Literal["haiku", "pirate", "robot"] = random.choice(["haiku", "pirate", "robot"])
-    context = CustomContext(style=choice)
-    print(f"Using style: {choice}\n")
+    context = CustomContext(style=random.choice(["haiku", "pirate", "robot"]))
+    print(f"Using style: {context.style}\n")
 
     user_message = "给我讲个笑话."
     print(f"User: {user_message}")
@@ -46,6 +45,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 """
 $ python examples/basic/dynamic_system_prompt.py
